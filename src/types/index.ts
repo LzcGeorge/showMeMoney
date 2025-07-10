@@ -51,6 +51,7 @@ export interface PriceHistoryRecord {
 export interface InvestRecord {
   id: number;
   stockName: string;
+  stockCode?: string; // 添加股票代码字段（可选）
   buyPrice: number;
   shares: number;
   stopLossPrice: number;
@@ -67,6 +68,7 @@ export interface InvestRecord {
 export interface ClosedPosition {
   id: number;
   stockName: string;
+  stockCode?: string; // 添加股票代码字段（可选）
   buyPrice: number;
   shares: number;
   buyDate: string;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Button, Space, message, Modal, DatePicker, Form, Select, Tooltip } from 'antd';
-import { DeleteOutlined, ExclamationCircleOutlined, FilterOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { DeleteOutlined, ExclamationCircleOutlined, FilterOutlined, InfoCircleOutlined, LinkOutlined } from '@ant-design/icons';
 import type { ClosedPosition } from '../types';
 import { getClosedPositions, deleteClosedPosition } from '../services/investService';
 import ClosedPositionDetail from './ClosedPositionDetail';
@@ -67,6 +67,39 @@ const ClosedPositionList: React.FC<ClosedPositionListProps> = ({ onDataChange, r
   const handleViewDetail = (record: ClosedPosition) => {
     setSelectedRecord(record);
     setIsDetailVisible(true);
+  };
+
+  // 跳转到东方财富查看股东持仓
+  const handleViewShareholders = (record: ClosedPosition) => {
+    // 优先使用stockCode字段，如果没有则从股票名称中提取
+    let stockCode = record.stockCode || extractStockCode(record.stockName);
+    
+    if (stockCode) {
+      // 如果stockCode不包含交易所前缀，则自动添加
+      let formattedCode = stockCode;
+      if (!/^(SH|SZ)/.test(stockCode)) {
+        if (stockCode.startsWith('6')) {
+          formattedCode = `SH${stockCode}`;
+        } else if (stockCode.startsWith('0') || stockCode.startsWith('3')) {
+          formattedCode = `SZ${stockCode}`;
+        }
+      }
+      
+      const url = `https://emweb.securities.eastmoney.com/pc_hsf10/pages/index.html?type=web&code=${formattedCode}&color=b#/gdyj`;
+      window.open(url, '_blank');
+    } else {
+      messageApi.warning('无法识别股票代码，请在股票代码列填写或确保股票名称包含代码信息');
+    }
+  };
+
+  // 提取股票代码的辅助函数
+  const extractStockCode = (stockName: string): string | null => {
+    // 匹配6位数字的股票代码
+    const codeMatch = stockName.match(/(\d{6})/);
+    if (codeMatch) {
+      return codeMatch[1];
+    }
+    return null;
   };
 
   // 删除记录
@@ -219,6 +252,13 @@ const ClosedPositionList: React.FC<ClosedPositionListProps> = ({ onDataChange, r
       )
     },
     {
+      title: '股票代码',
+      dataIndex: 'stockCode',
+      key: 'stockCode',
+      width: 100,
+      render: (code: string) => code || '-'
+    },
+    {
       title: '买入日期',
       dataIndex: 'buyDate',
       key: 'buyDate',
@@ -267,7 +307,7 @@ const ClosedPositionList: React.FC<ClosedPositionListProps> = ({ onDataChange, r
     {
       title: '操作',
       key: 'action',
-      width: 120,
+      width: 160,
       render: (_: any, record: ClosedPosition) => (
         <Space size="small">
           <Tooltip title="详情">
@@ -279,6 +319,18 @@ const ClosedPositionList: React.FC<ClosedPositionListProps> = ({ onDataChange, r
                 e.stopPropagation();
                 console.log('清仓记录详情按钮被点击:', record);
                 handleViewDetail(record);
+              }}
+            />
+          </Tooltip>
+          <Tooltip title="股东持仓">
+            <Button 
+              type="text" 
+              icon={<LinkOutlined />} 
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('清仓记录股东持仓按钮被点击:', record);
+                handleViewShareholders(record);
               }}
             />
           </Tooltip>

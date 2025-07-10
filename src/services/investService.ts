@@ -87,6 +87,7 @@ export const saveInitialCapital = (amount: number): void => {
 // 添加新持仓
 export const addNewPosition = (
   stockName: string,
+  stockCode: string = '',
   buyPrice: number,
   shares: number,
   stopLossPrice: number,
@@ -112,6 +113,7 @@ export const addNewPosition = (
   const newRecord: InvestRecord = {
     id,
     stockName,
+    stockCode: stockCode || undefined,
     buyPrice,
     shares,
     stopLossPrice,
@@ -309,6 +311,7 @@ export const closePosition = (id: number): ClosedPosition | null => {
   const closedPosition: ClosedPosition = {
     id: position.id,
     stockName: position.stockName,
+    stockCode: position.stockCode,
     buyPrice: position.buyPrice,
     shares: position.shares,
     buyDate: position.buyDate,

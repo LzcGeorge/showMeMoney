@@ -53,7 +53,7 @@ function App() {
       <Layout className="main-layout">
         <Content className="main-content">
           <div className="app-header">
-            <h1>股票投资管理系统</h1>
+            <h1>Investment Tracker</h1>
             <DataImportExport onDataChange={handleDataChange} />
           </div>
           

@@ -338,7 +338,7 @@ body {
 /* 网格布局 */
 .actions-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 20px;
   margin-top: 32px;
 }

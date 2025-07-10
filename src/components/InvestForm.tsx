@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Form, Input, InputNumber, Button, Card, DatePicker, message, Row, Col, Alert } from 'antd';
-import { CalculatorOutlined, PlusOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { CalculatorOutlined, PlusOutlined, InfoCircleOutlined, LinkOutlined } from '@ant-design/icons';
 import { addNewPosition } from '../services/investService';
 import dayjs from 'dayjs';
 
@@ -55,6 +55,7 @@ const InvestForm: React.FC<InvestFormProps> = ({ onSuccess }) => {
       // 提取表单数据
       const {
         stockName,
+        stockCode,
         buyPrice,
         shares,
         stopLossPrice,
@@ -66,6 +67,7 @@ const InvestForm: React.FC<InvestFormProps> = ({ onSuccess }) => {
       // 添加新持仓
       addNewPosition(
         stockName,
+        stockCode || '',
         buyPrice,
         shares,
         stopLossPrice,
@@ -97,6 +99,43 @@ const InvestForm: React.FC<InvestFormProps> = ({ onSuccess }) => {
     }
   };
 
+  // 查看股东持仓功能
+  const handleViewShareholders = () => {
+    const stockName = form.getFieldValue('stockName');
+    const stockCode = form.getFieldValue('stockCode');
+    
+    // 优先使用stockCode字段，如果没有则从股票名称中提取
+    let code = stockCode || extractStockCode(stockName);
+    
+    if (code) {
+      // 如果stockCode不包含交易所前缀，则自动添加
+      let formattedCode = code;
+      if (!/^(SH|SZ)/.test(code)) {
+        if (code.startsWith('6')) {
+          formattedCode = `SH${code}`;
+        } else if (code.startsWith('0') || code.startsWith('3')) {
+          formattedCode = `SZ${code}`;
+        }
+      }
+      
+      const url = `https://emweb.securities.eastmoney.com/pc_hsf10/pages/index.html?type=web&code=${formattedCode}&color=b#/gdyj`;
+      window.open(url, '_blank');
+    } else {
+      messageApi.warning('请先填写股票名称或股票代码');
+    }
+  };
+
+  // 提取股票代码的辅助函数
+  const extractStockCode = (stockName: string): string | null => {
+    if (!stockName) return null;
+    // 匹配6位数字的股票代码
+    const codeMatch = stockName.match(/(\d{6})/);
+    if (codeMatch) {
+      return codeMatch[1];
+    }
+    return null;
+  };
+
   return (
     <>
       {contextHolder}
@@ -115,10 +154,18 @@ const InvestForm: React.FC<InvestFormProps> = ({ onSuccess }) => {
             <Col xs={24} sm={12} md={8}>
               <Form.Item
                 name="stockName"
-                label="股票名称/代码"
-                rules={[{ required: true, message: '请输入股票名称或代码' }]}
+                label="股票名称"
+                rules={[{ required: true, message: '请输入股票名称' }]}
               >
-                <Input placeholder="如：三一重工/600031" />
+                <Input placeholder="如：三一重工" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12} md={8}>
+              <Form.Item
+                name="stockCode"
+                label="股票代码"
+              >
+                <Input placeholder="如：600031（可选）" />
               </Form.Item>
             </Col>
             <Col xs={24} sm={12} md={8}>
@@ -222,6 +269,14 @@ const InvestForm: React.FC<InvestFormProps> = ({ onSuccess }) => {
               size="large"
             >
               计算止损
+            </Button>
+            <Button
+              type="default"
+              icon={<LinkOutlined />}
+              onClick={handleViewShareholders}
+              size="large"
+            >
+              股东持仓
             </Button>
             <Button
               type="primary"

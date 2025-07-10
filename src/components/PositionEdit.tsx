@@ -26,6 +26,7 @@ const PositionEdit: React.FC<PositionEditProps> = ({
     if (visible && record) {
       form.setFieldsValue({
         stockName: record.stockName,
+        stockCode: record.stockCode || '',
         buyPrice: record.buyPrice,
         shares: record.shares,
         stopLossPrice: record.stopLossPrice,
@@ -45,6 +46,7 @@ const PositionEdit: React.FC<PositionEditProps> = ({
       const updatedRecord: InvestRecord = {
         ...record,
         stockName: values.stockName,
+        stockCode: values.stockCode || undefined,
         buyPrice: values.buyPrice,
         shares: values.shares,
         stopLossPrice: values.stopLossPrice,
@@ -90,6 +92,13 @@ const PositionEdit: React.FC<PositionEditProps> = ({
             rules={[{ required: true, message: '请输入股票名称' }]}
           >
             <Input placeholder="请输入股票名称" />
+          </Form.Item>
+
+          <Form.Item
+            name="stockCode"
+            label="股票代码"
+          >
+            <Input placeholder="如：600031（可选）" />
           </Form.Item>
 
           <div style={{ display: 'flex', gap: 16 }}>

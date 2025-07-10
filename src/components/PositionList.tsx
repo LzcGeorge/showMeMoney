@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Button, Space, message, Modal, Tag, Tooltip } from 'antd';
-import { EditOutlined, DeleteOutlined, ExclamationCircleOutlined, InfoCircleOutlined, DollarOutlined } from '@ant-design/icons';
+import { EditOutlined, DeleteOutlined, ExclamationCircleOutlined, InfoCircleOutlined, DollarOutlined, LinkOutlined } from '@ant-design/icons';
 import type { InvestRecord } from '../types';
 import { getCurrentPositions, deletePosition, closePosition } from '../services/investService';
 import PositionDetail from './PositionDetail';
@@ -133,6 +133,39 @@ const PositionList: React.FC<PositionListProps> = ({ onDataChange, refresh }) =>
     }
   };
 
+  // 跳转到东方财富查看股东持仓
+  const handleViewShareholders = (record: InvestRecord) => {
+    // 优先使用stockCode字段，如果没有则从股票名称中提取
+    let stockCode = record.stockCode || extractStockCode(record.stockName);
+    
+    if (stockCode) {
+      // 如果stockCode不包含交易所前缀，则自动添加
+      let formattedCode = stockCode;
+      if (!/^(SH|SZ)/.test(stockCode)) {
+        if (stockCode.startsWith('6')) {
+          formattedCode = `SH${stockCode}`;
+        } else if (stockCode.startsWith('0') || stockCode.startsWith('3')) {
+          formattedCode = `SZ${stockCode}`;
+        }
+      }
+      
+      const url = `https://emweb.securities.eastmoney.com/pc_hsf10/pages/index.html?type=web&code=${formattedCode}&color=b#/gdyj`;
+      window.open(url, '_blank');
+    } else {
+      messageApi.warning('无法识别股票代码，请在股票代码列填写或确保股票名称包含代码信息');
+    }
+  };
+
+  // 提取股票代码的辅助函数
+  const extractStockCode = (stockName: string): string | null => {
+    // 匹配6位数字的股票代码
+    const codeMatch = stockName.match(/(\d{6})/);
+    if (codeMatch) {
+      return codeMatch[1];
+    }
+    return null;
+  };
+
   // 表格列定义
   const columns = [
     {
@@ -142,6 +175,13 @@ const PositionList: React.FC<PositionListProps> = ({ onDataChange, refresh }) =>
       render: (text: string) => (
         <span style={{ fontWeight: 'bold', color: '#1890ff' }}>{text}</span>
       )
+    },
+    {
+      title: '股票代码',
+      dataIndex: 'stockCode',
+      key: 'stockCode',
+      width: 100,
+      render: (code: string) => code || '-'
     },
     {
       title: '当前价格',
@@ -205,7 +245,7 @@ const PositionList: React.FC<PositionListProps> = ({ onDataChange, refresh }) =>
     {
       title: '操作',
       key: 'action',
-      width: 180,
+      width: 220,
       render: (_: any, record: InvestRecord) => (
         <Space size="small">
           <Tooltip title="详情">
@@ -229,6 +269,18 @@ const PositionList: React.FC<PositionListProps> = ({ onDataChange, refresh }) =>
                 e.stopPropagation();
                 console.log('编辑按钮被点击:', record);
                 handleEdit(record);
+              }}
+            />
+          </Tooltip>
+          <Tooltip title="股东持仓">
+            <Button 
+              type="text" 
+              icon={<LinkOutlined />} 
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('股东持仓按钮被点击:', record);
+                handleViewShareholders(record);
               }}
             />
           </Tooltip>
