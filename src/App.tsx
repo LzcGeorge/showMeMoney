@@ -10,6 +10,7 @@ import InvestStatistics from './components/InvestStatistics';
 import CapitalManager from './components/CapitalManager';
 import ClosedPositionList from './components/ClosedPositionList';
 import DataImportExport from './components/DataImportExport';
+import DailyReviewList from './components/DailyReviewList';
 
 const { Content } = Layout;
 const { TabPane } = Tabs;
@@ -80,15 +81,23 @@ function App() {
               </div>
             </TabPane>
             
-            <TabPane tab="资金管理" key="3">
-              <div className="tab-content">
-                <CapitalManager onDataChange={handleDataChange} refresh={refreshCounter} />
-              </div>
-            </TabPane>
+           
             
             <TabPane tab="清仓记录" key="4">
               <div className="tab-content">
                 <ClosedPositionList onDataChange={handleDataChange} refresh={refreshCounter} />
+              </div>
+            </TabPane>
+            
+            <TabPane tab="每日复盘" key="5">
+              <div className="tab-content">
+                <DailyReviewList onDataChange={handleDataChange} refresh={refreshCounter} />
+              </div>
+            </TabPane>
+
+            <TabPane tab="资金管理" key="3">
+              <div className="tab-content">
+                <CapitalManager onDataChange={handleDataChange} refresh={refreshCounter} />
               </div>
             </TabPane>
           </Tabs>

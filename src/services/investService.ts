@@ -1,4 +1,4 @@
-import type { InvestRecord, ClosedPosition, CapitalRecord, InvestStats, ImportResult } from '../types';
+import type { InvestRecord, ClosedPosition, CapitalRecord, InvestStats, ImportResult, DailyReview, ReviewStats } from '../types';
 
 // 格式化货币
 export const formatCurrency = (amount: number): string => {
@@ -475,8 +475,9 @@ export const exportAllData = () => {
     capitalRecords: getCapitalRecords(), // 统一使用新的资金记录格式
     initialCapital: getInitialCapital(),
     historicalPriceData, // 历史价格数据
+    dailyReviews: getDailyReviews(), // 每日复盘记录
     exportTime: new Date().toISOString(),
-    version: '2.0' // 数据格式版本
+    version: '2.1' // 数据格式版本
   };
 };
 
@@ -607,6 +608,27 @@ export const importData = (data: any): ImportResult => {
       localStorage.setItem('capitalRecords', JSON.stringify(mergedRecords));
     }
     
+    // 导入复盘记录
+    if (data.dailyReviews && Array.isArray(data.dailyReviews)) {
+      const dailyReviews = getDailyReviews();
+      const mergedReviews = [...dailyReviews];
+      
+      data.dailyReviews.forEach((item: DailyReview) => {
+        const existingIndex = mergedReviews.findIndex(
+          existing => existing.id === item.id || existing.date === item.date
+        );
+        
+        if (existingIndex === -1) {
+          mergedReviews.push(item);
+          importCount++;
+        }
+      });
+      
+      // 按日期排序
+      mergedReviews.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      saveDailyReviews(mergedReviews);
+    }
+    
     // 导入初始资金（如果当前为0）
     let capitalImported = false;
     if (data.initialCapital && typeof data.initialCapital === 'number') {
@@ -694,12 +716,12 @@ export function calculateTotalInvestment(): number {
 export const clearAllData = (): void => {
   try {
     // 清除所有相关的localStorage数据
-    localStorage.removeItem('stockLossHistory'); // 当前持仓
-    localStorage.removeItem('closedPositions'); // 清仓记录
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_POSITIONS); // 当前持仓
+    localStorage.removeItem(STORAGE_KEYS.CLOSED_POSITIONS); // 清仓记录
+    localStorage.removeItem(STORAGE_KEYS.INITIAL_CAPITAL); // 初始资金
     localStorage.removeItem('capitalRecords'); // 新格式资金记录
-    localStorage.removeItem('capitalHistory'); // 旧格式资金历史（如果存在）
-    localStorage.removeItem('initialCapital'); // 初始资金
     localStorage.removeItem('historicalPriceData'); // 历史价格数据
+    localStorage.removeItem('dailyReviews'); // 添加清除复盘记录
     
     // 清除可能存在的其他相关数据
     localStorage.removeItem('investStats'); // 投资统计缓存（如果有）
@@ -710,4 +732,174 @@ export const clearAllData = (): void => {
     console.error('清除数据失败:', error);
     throw error;
   }
+}; 
+
+// ==================== 每日复盘功能 ====================
+
+// 本地存储键名
+const DAILY_REVIEWS_KEY = 'dailyReviews';
+
+// 生成复盘记录ID
+const generateReviewId = (): string => {
+  return Date.now().toString(36) + Math.random().toString(36).substring(2);
+};
+
+// 获取所有复盘记录
+export const getDailyReviews = (): DailyReview[] => {
+  try {
+    const data = localStorage.getItem(DAILY_REVIEWS_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch (error) {
+    console.error('获取复盘记录失败:', error);
+    return [];
+  }
+};
+
+// 保存复盘记录
+const saveDailyReviews = (reviews: DailyReview[]): void => {
+  try {
+    localStorage.setItem(DAILY_REVIEWS_KEY, JSON.stringify(reviews));
+  } catch (error) {
+    console.error('保存复盘记录失败:', error);
+  }
+};
+
+// 创建新的复盘记录
+export const createDailyReview = (reviewData: Omit<DailyReview, 'id' | 'createdAt' | 'updatedAt'>): DailyReview => {
+  const now = new Date().toISOString();
+  const newReview: DailyReview = {
+    ...reviewData,
+    id: generateReviewId(),
+    createdAt: now,
+    updatedAt: now
+  };
+  
+  const reviews = getDailyReviews();
+  reviews.push(newReview);
+  
+  // 按日期倒序排序
+  reviews.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  
+  saveDailyReviews(reviews);
+  return newReview;
+};
+
+// 更新复盘记录
+export const updateDailyReview = (id: string, reviewData: Partial<DailyReview>): DailyReview | null => {
+  const reviews = getDailyReviews();
+  const index = reviews.findIndex(review => review.id === id);
+  
+  if (index !== -1) {
+    const updatedReview = {
+      ...reviews[index],
+      ...reviewData,
+      updatedAt: new Date().toISOString()
+    };
+    
+    reviews[index] = updatedReview;
+    saveDailyReviews(reviews);
+    return updatedReview;
+  }
+  
+  return null;
+};
+
+// 删除复盘记录
+export const deleteDailyReview = (id: string): boolean => {
+  const reviews = getDailyReviews();
+  const index = reviews.findIndex(review => review.id === id);
+  
+  if (index !== -1) {
+    reviews.splice(index, 1);
+    saveDailyReviews(reviews);
+    return true;
+  }
+  
+  return false;
+};
+
+// 根据日期获取复盘记录
+export const getDailyReviewByDate = (date: string): DailyReview | null => {
+  const reviews = getDailyReviews();
+  return reviews.find(review => review.date === date) || null;
+};
+
+// 计算当日盈亏
+export const calculateDailyProfit = (date: string): number => {
+  const positions = getCurrentPositions();
+  const closedPositions = getClosedPositions();
+  
+  // 计算当前持仓在指定日期的盈亏（基于价格历史）
+  let currentPositionsProfit = 0;
+  positions.forEach(position => {
+    const priceRecord = position.priceHistory.find(record => record.date === date);
+    if (priceRecord) {
+      currentPositionsProfit += priceRecord.profit;
+    }
+  });
+  
+  // 计算当日清仓的盈亏
+  let closedPositionsProfit = 0;
+  closedPositions.forEach(position => {
+    if (position.closedAt === date) {
+      closedPositionsProfit += position.finalProfit;
+    }
+  });
+  
+  return currentPositionsProfit + closedPositionsProfit;
+};
+
+// 计算复盘统计数据
+export const calculateReviewStats = (): ReviewStats => {
+  const reviews = getDailyReviews();
+  
+  if (reviews.length === 0) {
+    return {
+      totalReviews: 0,
+      avgDailyProfit: 0,
+      bestDay: null,
+      worstDay: null,
+      emotionDistribution: {},
+      profitableDays: 0,
+      lossDays: 0
+    };
+  }
+  
+  // 计算平均每日盈亏
+  const totalProfit = reviews.reduce((sum, review) => sum + review.totalProfit, 0);
+  const avgDailyProfit = totalProfit / reviews.length;
+  
+  // 找出最好和最差的一天
+  const bestDay = reviews.reduce((best, current) => 
+    current.totalProfit > (best?.totalProfit || -Infinity) ? current : best
+  );
+  const worstDay = reviews.reduce((worst, current) => 
+    current.totalProfit < (worst?.totalProfit || Infinity) ? current : worst
+  );
+  
+  // 情绪分布统计
+  const emotionDistribution: Record<string, number> = {};
+  reviews.forEach(review => {
+    emotionDistribution[review.emotionState] = (emotionDistribution[review.emotionState] || 0) + 1;
+  });
+  
+  // 盈利和亏损天数
+  const profitableDays = reviews.filter(review => review.totalProfit > 0).length;
+  const lossDays = reviews.filter(review => review.totalProfit < 0).length;
+  
+  return {
+    totalReviews: reviews.length,
+    avgDailyProfit,
+    bestDay,
+    worstDay,
+    emotionDistribution,
+    profitableDays,
+    lossDays
+  };
+};
+
+// 获取最近N天的复盘记录
+export const getRecentReviews = (days: number): DailyReview[] => {
+  const reviews = getDailyReviews();
+  return reviews.slice(0, days);
 }; 

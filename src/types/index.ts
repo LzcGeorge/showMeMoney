@@ -115,4 +115,31 @@ export interface ClosedStats {
 export interface ImportResult {
   success: boolean;
   message: string;
+}
+
+// 每日复盘记录类型
+export interface DailyReview {
+  id: string;
+  date: string;
+  marketOverview: string; // 市场概况
+  positionReview: string; // 持仓回顾
+  tradeAnalysis: string; // 交易分析
+  emotionState: 'excellent' | 'good' | 'neutral' | 'bad' | 'terrible'; // 情绪状态
+  lessons: string; // 经验教训
+  nextPlan: string; // 明日计划
+  totalProfit: number; // 当日总盈亏
+  tags: string[]; // 标签
+  createdAt: string;
+  updatedAt: string;
+}
+
+// 复盘统计类型
+export interface ReviewStats {
+  totalReviews: number;
+  avgDailyProfit: number;
+  bestDay: DailyReview | null;
+  worstDay: DailyReview | null;
+  emotionDistribution: Record<string, number>;
+  profitableDays: number;
+  lossDays: number;
 } 
