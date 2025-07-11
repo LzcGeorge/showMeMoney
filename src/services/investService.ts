@@ -133,17 +133,23 @@ export const addNewPosition = (
     ]
   };
   
-  // 添加资金记录 - 买入股票支出
+  // 添加资金记录 - 买入股票支出（记录但不影响资金曲线）
   try {
     const capitalRecords = getCapitalRecords();
+    const buyRecordId = generateId();
     const newCapitalRecord: CapitalRecord = {
-      id: generateId(),
+      id: buyRecordId,
       date: actualBuyDate,
       amount: totalInvestment,
       type: 'buy',
       timestamp: now.getTime(),
-      remark: `买入 ${stockName} - ${shares}股 × ${buyPrice}元`
+      remark: `买入 ${stockName} : ${totalInvestment}元`,
+      stockName: stockName,
+      stockCode: stockCode || undefined
     };
+    
+    // 将买入记录ID存储到持仓记录中，方便后续卖出时查找
+    newRecord.buyRecordId = buyRecordId;
     
     capitalRecords.push(newCapitalRecord);
     // 按日期排序
@@ -179,29 +185,19 @@ export const deletePosition = (id: number): void => {
   
   if (index !== -1) {
     const position = positions[index];
-    const totalInvestment = position.buyPrice * position.shares;
     
-    // 添加资金记录 - 删除持仓时返还买入资金
+    // 删除对应的买入记录（如果存在）
     try {
-      const capitalRecords = getCapitalRecords();
-      const now = new Date();
-      const today = now.toISOString().split('T')[0];
-      
-      const refundCapitalRecord: CapitalRecord = {
-        id: generateId(),
-        date: today,
-        amount: totalInvestment,
-        type: 'deposit',
-        timestamp: now.getTime(),
-        remark: `删除持仓 ${position.stockName} - 返还 ${position.shares}股 × ${position.buyPrice}元`
-      };
-      
-      capitalRecords.push(refundCapitalRecord);
-      // 按日期排序
-      capitalRecords.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      localStorage.setItem('capitalRecords', JSON.stringify(capitalRecords));
+      if (position.buyRecordId) {
+        const capitalRecords = getCapitalRecords();
+        const filteredRecords = capitalRecords.filter(record => record.id !== position.buyRecordId);
+        
+        // 按日期排序
+        filteredRecords.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        localStorage.setItem('capitalRecords', JSON.stringify(filteredRecords));
+      }
     } catch (error) {
-      console.error('添加删除持仓资金记录失败:', error);
+      console.error('删除买入记录失败:', error);
     }
     
     // 删除持仓记录
@@ -321,22 +317,56 @@ export const closePosition = (id: number): ClosedPosition | null => {
     remark: position.remark
   };
   
-  // 添加资金记录 - 清仓收回资金
+  // 添加资金记录 - 清仓净利润（只记录盈亏，不记录总收入）
   try {
     const capitalRecords = getCapitalRecords();
-    const newCapitalRecord: CapitalRecord = {
-      id: generateId(),
-      date: today,
-      amount: totalReceivedAmount,
-      type: 'sell',
-      timestamp: now.getTime(),
-      remark: `清仓 ${position.stockName} - ${position.shares}股 × ${position.currentPrice}元`
-    };
     
-    capitalRecords.push(newCapitalRecord);
-    // 按日期排序
-    capitalRecords.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    localStorage.setItem('capitalRecords', JSON.stringify(capitalRecords));
+    // 查找对应的买入记录
+    const buyRecord = capitalRecords.find(record => 
+      record.id === position.buyRecordId && record.type === 'buy'
+    );
+    
+    if (buyRecord) {
+      // 计算净利润：卖出收入 - 买入成本
+      const netProfit = totalReceivedAmount - buyRecord.amount;
+      
+      // 只有当净利润不为0时才记录
+      if (netProfit !== 0) {
+        const profitRecord: CapitalRecord = {
+          id: generateId(),
+          date: today,
+          amount: Math.abs(netProfit),
+          type: netProfit > 0 ? 'profit' : 'withdraw', // 盈利用profit，亏损用withdraw
+          timestamp: now.getTime(),
+          remark: `清仓 ${position.stockName} : 净${netProfit > 0 ? '盈利' : '亏损'} ${Math.abs(netProfit).toFixed(2)}元`,
+          stockName: position.stockName,
+          stockCode: position.stockCode,
+          relatedBuyId: position.buyRecordId
+        };
+        
+        capitalRecords.push(profitRecord);
+        // 按日期排序
+        capitalRecords.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        localStorage.setItem('capitalRecords', JSON.stringify(capitalRecords));
+      }
+    } else {
+      console.warn('未找到对应的买入记录，使用传统方式记录卖出');
+      // 如果找不到买入记录，使用传统方式
+      const newCapitalRecord: CapitalRecord = {
+        id: generateId(),
+        date: today,
+        amount: totalReceivedAmount,
+        type: 'sell',
+        timestamp: now.getTime(),
+        remark: `清仓 ${position.stockName} - ${position.shares}股 × ${position.currentPrice}元`,
+        stockName: position.stockName,
+        stockCode: position.stockCode
+      };
+      
+      capitalRecords.push(newCapitalRecord);
+      capitalRecords.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      localStorage.setItem('capitalRecords', JSON.stringify(capitalRecords));
+    }
   } catch (error) {
     console.error('添加清仓资金记录失败:', error);
   }
@@ -397,11 +427,13 @@ export const calculateCurrentCapital = (): number => {
   return records.reduce((total, record) => {
     switch (record.type) {
       case 'deposit': // 入金
-      case 'sell':    // 卖出(收入)
+      case 'sell':    // 卖出(收入) - 兼容旧数据
+      case 'profit':  // 净利润
         return total + record.amount;
       case 'withdraw': // 出金  
-      case 'buy':     // 买入(支出)
         return total - record.amount;
+      case 'buy':     // 买入(支出) - 不再减去买入支出，因为买入的钱还是自己的资产
+        return total; // 买入时不影响当前资金计算
       default:
         return total;
     }
@@ -440,10 +472,9 @@ export const calculateInvestStats = (): InvestStats => {
   const averageLossPercentage = totalLossPercentage / positions.length;
   const currentProfitPercentage = totalInvestment > 0 ? (totalProfit / totalInvestment) * 100 : 0;
   
-  // 计算可用资金 = 总资金 + 已投资金额（因为已投资的资金目前还在股票中）
+  // 计算投入占比
   const currentCapital = calculateCurrentCapital();
-  const availableCapital = currentCapital + totalInvestment;
-  const investmentRatio = availableCapital > 0 ? (totalInvestment / availableCapital) * 100 : 0;
+  const investmentRatio = currentCapital > 0 ? (totalInvestment / currentCapital) * 100 : 0;
   
   return {
     totalInvestment,

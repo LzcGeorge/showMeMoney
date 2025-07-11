@@ -62,6 +62,7 @@ export interface InvestRecord {
   lossPercentage: number;
   currentProfit: number;
   priceHistory: PriceHistoryRecord[];
+  buyRecordId?: string; // 关联的买入资金记录ID
 }
 
 // 清仓记录类型
@@ -83,9 +84,12 @@ export interface CapitalRecord {
   id: string;
   date: string;
   amount: number;
-  type: 'deposit' | 'withdraw' | 'buy' | 'sell'; // 'deposit' 入金，'withdraw' 出金，'buy' 买入，'sell' 卖出
+  type: 'deposit' | 'withdraw' | 'buy' | 'sell' | 'profit'; // 'deposit' 入金，'withdraw' 出金，'buy' 买入，'sell' 卖出，'profit' 净利润
   timestamp?: number; // 添加可选的timestamp字段
   remark?: string; // 添加可选的备注字段
+  stockName?: string; // 关联的股票名称
+  stockCode?: string; // 关联的股票代码
+  relatedBuyId?: string; // 关联的买入记录ID（用于卖出时找到对应的买入记录）
 }
 
 // 投资统计类型

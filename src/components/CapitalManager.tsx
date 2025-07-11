@@ -45,16 +45,21 @@ const CapitalManager: React.FC<CapitalManagerProps> = ({ onDataChange, refresh }
       
       chartInstance.current = echarts.init(chartRef.current);
       
-      // 计算累计资金变化
+      // 计算累计资金变化 - 只显示真实的资金流动：入金、出金、净利润
       const sortedRecords = [...records].sort((a, b) => 
         new Date(a.date).getTime() - new Date(b.date).getTime()
       );
       
+      // 过滤掉买入和传统卖出记录，只保留真实的资金变化
+      const filteredRecords = sortedRecords.filter(record => 
+        record.type !== 'buy' && record.type !== 'sell'
+      );
+      
       let cumulativeAmount = 0;
-      const chartData = sortedRecords.map(record => {
-        if (record.type === 'deposit' || record.type === 'sell') {
+      const chartData = filteredRecords.map(record => {
+        if (record.type === 'deposit' || record.type === 'profit') {
           cumulativeAmount += record.amount;
-        } else {
+        } else if (record.type === 'withdraw') {
           cumulativeAmount -= record.amount;
         }
         return {
@@ -311,7 +316,8 @@ const CapitalManager: React.FC<CapitalManagerProps> = ({ onDataChange, refresh }
           deposit: { text: '入金', color: '#52c41a' },
           withdraw: { text: '出金', color: '#ff4d4f' },
           buy: { text: '买入', color: '#1890ff' },
-          sell: { text: '卖出', color: '#fa8c16' }
+          sell: { text: '卖出', color: '#fa8c16' },
+          profit: { text: '清仓', color: '#f5222d' }
         };
         const typeInfo = typeMap[type as keyof typeof typeMap] || { text: type, color: '#666' };
         return (
@@ -327,12 +333,38 @@ const CapitalManager: React.FC<CapitalManagerProps> = ({ onDataChange, refresh }
       key: 'amount',
       width: 120,
       render: (amount: number, record: CapitalRecord) => {
-        const isIncome = record.type === 'deposit' || record.type === 'sell';
-        const color = isIncome ? '#52c41a' : '#f5222d';
-        const prefix = isIncome ? '+' : '-';
+        let color = '#000';
+        let prefix = '';
+        
+        switch (record.type) {
+          case 'deposit': // 入金 - 绿色，正号
+            color = '#52c41a';
+            prefix = '+';
+            break;
+          case 'withdraw': // 出金 - 红色，负号
+            color = '#f5222d';
+            prefix = '-';
+            break;
+          case 'buy': // 买入 - 黑色，负号
+            color = '#000';
+            prefix = '-';
+            break;
+          case 'sell': // 卖出 - 按原逻辑，绿色，正号
+            color = '#52c41a';
+            prefix = '+';
+            break;
+          case 'profit': // 清仓 - 正数红色(盈利)，负数绿色(亏损)
+            color = amount > 0 ? '#f5222d' : '#52c41a';
+            prefix = amount > 0 ? '+' : '-';
+            break;
+          default:
+            color = '#000';
+            prefix = '';
+        }
+        
         return (
           <span style={{ color, fontWeight: 'bold' }}>
-            {prefix}{amount.toFixed(2)}元
+            {prefix}{Math.abs(amount).toFixed(2)}元
           </span>
         );
       }
