@@ -7,31 +7,29 @@ import {
   LineChartOutlined,
   TeamOutlined
 } from '@ant-design/icons';
-import { calculateInvestStats } from '../services/investService';
-import type { InvestStats } from '../types';
+import { calculateFuturesStats } from '../services/investService';
 
-interface InvestStatisticsProps {
+interface FuturesStatisticsProps {
   refresh?: number; // 用于触发刷新的计数器
 }
 
-const InvestStatistics: React.FC<InvestStatisticsProps> = ({ refresh }) => {
-  const [stats, setStats] = useState<InvestStats>({
-    totalInvestment: 0,
+const FuturesStatistics: React.FC<FuturesStatisticsProps> = ({ refresh }) => {
+  const [stats, setStats] = useState({
+    totalMargin: 0,
     totalMaxLoss: 0,
     averageLossPercentage: 0,
     currentProfitPercentage: 0,
     totalProfit: 0,
     recordCount: 0,
-    investmentRatio: 0
+    longPositions: 0,
+    shortPositions: 0
   });
-  // const [currentCapital, setCurrentCapital] = useState(0);
 
   useEffect(() => {
     // 加载统计数据
     const loadStats = () => {
-      const calculatedStats = calculateInvestStats();
+      const calculatedStats = calculateFuturesStats();
       setStats(calculatedStats);
-      // setCurrentCapital(calculateCurrentCapital());
     };
     
     loadStats();
@@ -42,26 +40,16 @@ const InvestStatistics: React.FC<InvestStatisticsProps> = ({ refresh }) => {
     return value > 0 ? '#f5222d' : value < 0 ? '#52c41a' : '#666';
   };
 
-  // 根据投入占比返回颜色
-  // const getRatioColor = (ratio: number) => {
-  //   if (ratio > 80) return '#f5222d';
-  //   if (ratio > 50) return '#fa8c16';
-  //   return '#52c41a';
-  // };
-
-  // 可用资金 = 当前资金 - 已投入资金
-  // const availableCapital = currentCapital - stats.totalInvestment;
-
   return (
-    <Card title="投资概览" bordered={false}>
+    <Card title="期货投资概览" bordered={false}>
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-card-title">
             <DollarOutlined style={{ marginRight: 4 }} />
-            总投入金额
+            总保证金
           </div>
           <div className="stat-card-value" style={{ color: '#667eea' }}>
-            {stats.totalInvestment.toFixed(2)}元
+            {stats.totalMargin.toFixed(2)}元
           </div>
         </div>
 
@@ -78,7 +66,7 @@ const InvestStatistics: React.FC<InvestStatisticsProps> = ({ refresh }) => {
         <div className="stat-card">
           <div className="stat-card-title">
             <PercentageOutlined style={{ marginRight: 4 }} />
-            止损比例
+            平均亏损比例
           </div>
           <div className="stat-card-value" style={{ color: '#faad14' }}>
             {stats.averageLossPercentage.toFixed(2)}%
@@ -108,13 +96,9 @@ const InvestStatistics: React.FC<InvestStatisticsProps> = ({ refresh }) => {
             {stats.recordCount}
           </div>
         </div>
-
-
-
-
       </div>
     </Card>
   );
 };
 
-export default InvestStatistics; 
+export default FuturesStatistics; 

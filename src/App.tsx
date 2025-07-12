@@ -4,13 +4,14 @@ import zhCN from 'antd/locale/zh_CN';
 import './App.css';
 
 // 导入组件
-import InvestForm from './components/InvestForm';
 import PositionList from './components/PositionList';
 import InvestStatistics from './components/InvestStatistics';
 import CapitalManager from './components/CapitalManager';
 import ClosedPositionList from './components/ClosedPositionList';
 import DataImportExport from './components/DataImportExport';
 import DailyReviewList from './components/DailyReviewList';
+import FuturesPositionList from './components/FuturesPositionList';
+import FuturesStatistics from './components/FuturesStatistics';
 
 const { Content } = Layout;
 const { TabPane } = Tabs;
@@ -65,37 +66,33 @@ function App() {
             type="card"
             centered
           >
-            <TabPane tab="当前持仓" key="1">
+            <TabPane tab="股票持仓" key="1">
               <div className="tab-content">
                 <InvestStatistics refresh={refreshCounter} />
                 <PositionList onDataChange={handleDataChange} refresh={refreshCounter} />
               </div>
             </TabPane>
             
-            <TabPane tab="添加持仓" key="2">
+            <TabPane tab="期货持仓" key="2">
               <div className="tab-content">
-                <InvestForm onSuccess={() => {
-                  handleDataChange();
-                  setActiveTab('1');
-                }} />
+                <FuturesStatistics refresh={refreshCounter} />
+                <FuturesPositionList onDataChange={handleDataChange} refresh={refreshCounter} />
               </div>
             </TabPane>
             
-           
-            
-            <TabPane tab="清仓记录" key="4">
+            <TabPane tab="清仓记录" key="3">
               <div className="tab-content">
                 <ClosedPositionList onDataChange={handleDataChange} refresh={refreshCounter} />
               </div>
             </TabPane>
             
-            <TabPane tab="每日复盘" key="5">
+            <TabPane tab="每日复盘" key="4">
               <div className="tab-content">
                 <DailyReviewList onDataChange={handleDataChange} refresh={refreshCounter} />
               </div>
             </TabPane>
 
-            <TabPane tab="资金管理" key="3">
+            <TabPane tab="资金管理" key="5">
               <div className="tab-content">
                 <CapitalManager onDataChange={handleDataChange} refresh={refreshCounter} />
               </div>

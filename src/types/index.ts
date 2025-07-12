@@ -47,6 +47,8 @@ export interface PriceHistoryRecord {
   remark: string;
 }
 
+
+
 // 投资记录类型
 export interface InvestRecord {
   id: number;
@@ -58,6 +60,7 @@ export interface InvestRecord {
   currentPrice: number;
   buyDate: string;
   remark: string;
+  strategy?: InvestStrategy; // 投资策略
   maxLoss: number;
   lossPercentage: number;
   currentProfit: number;
@@ -77,6 +80,7 @@ export interface ClosedPosition {
   closedAt: string;
   finalProfit: number;
   remark: string;
+  strategy?: InvestStrategy; // 投资策略
 }
 
 // 资金记录类型
@@ -146,4 +150,71 @@ export interface ReviewStats {
   emotionDistribution: Record<string, number>;
   profitableDays: number;
   lossDays: number;
-} 
+}
+
+// 期货持仓记录类型
+export interface FuturesRecord {
+  id: number;
+  contractName: string; // 合约名称（如：沪深300指数期货）
+  contractCode: string; // 合约代码（如：IF2024）
+  direction: 'long' | 'short'; // 做多/做空方向
+  openPrice: number; // 开仓价格
+  lots: number; // 手数
+  multiplier: number; // 合约乘数
+  margin: number; // 保证金金额
+  marginRate: number; // 保证金率（%）
+  currentPrice: number; // 当前价格
+  stopLossPrice: number; // 止损价格
+  openDate: string; // 开仓日期
+  remark: string; // 备注
+  strategy?: InvestStrategy; // 投资策略
+  maxLoss: number; // 最大亏损
+  lossPercentage: number; // 亏损比例
+  currentProfit: number; // 当前盈亏
+  priceHistory: PriceHistoryRecord[]; // 价格历史
+  buyRecordId?: string; // 关联的资金记录ID
+}
+
+// 期货清仓记录类型
+export interface ClosedFuturesPosition {
+  id: number;
+  contractName: string;
+  contractCode: string;
+  direction: 'long' | 'short';
+  openPrice: number;
+  lots: number;
+  multiplier: number;
+  margin: number;
+  openDate: string;
+  closedPrice: number;
+  closedAt: string;
+  finalProfit: number;
+  remark: string;
+  strategy?: InvestStrategy; // 投资策略
+}
+
+
+// 投资策略类型
+export type InvestStrategy = 'trend' | 'growth';
+
+// 策略标签映射
+export const STRATEGY_LABELS: Record<InvestStrategy, string> = {
+  trend: '趋势回调',
+  growth: 'RVC010',
+  // value: '价值',
+  // momentum: '动量',
+  // reversal: '反转',
+  // arbitrage: '套利',
+  // other: '其他'
+};
+
+// 策略选项
+export const STRATEGY_OPTIONS: { value: InvestStrategy; label: string }[] = [
+  { value: 'trend', label: '趋势回调' },
+  { value: 'growth', label: 'RVC010' },
+  // { value: 'value', label: '价值' },
+  // { value: 'momentum', label: '动量' },
+  // { value: 'reversal', label: '反转' },
+  // { value: 'arbitrage', label: '套利' },
+  // { value: 'other', label: '其他' }
+]; 

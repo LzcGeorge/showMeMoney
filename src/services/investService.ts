@@ -1,4 +1,4 @@
-import type { InvestRecord, ClosedPosition, CapitalRecord, InvestStats, ImportResult, DailyReview, ReviewStats } from '../types';
+import type { InvestRecord, ClosedPosition, CapitalRecord, InvestStats, ImportResult, DailyReview, ReviewStats, FuturesRecord, ClosedFuturesPosition, InvestStrategy } from '../types';
 
 // 格式化货币
 export const formatCurrency = (amount: number): string => {
@@ -21,7 +21,9 @@ const generateId = (): string => {
 const STORAGE_KEYS = {
   CURRENT_POSITIONS: 'stockLossHistory',
   CLOSED_POSITIONS: 'closedPositions',
-  INITIAL_CAPITAL: 'initialCapital'
+  INITIAL_CAPITAL: 'initialCapital',
+  FUTURES_POSITIONS: 'futuresPositions',
+  CLOSED_FUTURES: 'closedFutures'
 };
 
 // 获取当前持仓列表
@@ -93,7 +95,8 @@ export const addNewPosition = (
   stopLossPrice: number,
   currentPrice: number,
   buyDate: string = '',
-  remark: string = ''
+  remark: string = '',
+  strategy: string = ''
 ): InvestRecord => {
   // 计算最大亏损
   const totalInvestment = buyPrice * shares;
@@ -123,6 +126,7 @@ export const addNewPosition = (
     currentProfit: profit,
     buyDate: actualBuyDate,
     remark,
+    strategy: strategy as InvestStrategy || undefined,
     priceHistory: [
       {
         date: today,
@@ -143,7 +147,7 @@ export const addNewPosition = (
       amount: totalInvestment,
       type: 'buy',
       timestamp: now.getTime(),
-      remark: `买入 ${stockName} : ${totalInvestment}元`,
+      remark: `买入 ${stockName} : ${shares}股 × ${buyPrice}元`,
       stockName: stockName,
       stockCode: stockCode || undefined
     };
@@ -314,7 +318,8 @@ export const closePosition = (id: number): ClosedPosition | null => {
     closedPrice: position.currentPrice,
     closedAt: today,
     finalProfit: position.currentProfit,
-    remark: position.remark
+    remark: position.remark,
+    strategy: position.strategy
   };
   
   // 添加资金记录 - 清仓净利润（只记录盈亏，不记录总收入）
@@ -335,8 +340,8 @@ export const closePosition = (id: number): ClosedPosition | null => {
         const profitRecord: CapitalRecord = {
           id: generateId(),
           date: today,
-          amount: Math.abs(netProfit),
-          type: netProfit > 0 ? 'profit' : 'withdraw', // 盈利用profit，亏损用withdraw
+          amount: netProfit, // 保持原始值，可以是正数或负数
+          type: 'profit', // 统一使用profit类型，无论盈利还是亏损
           timestamp: now.getTime(),
           remark: `清仓 ${position.stockName} : 净${netProfit > 0 ? '盈利' : '亏损'} ${Math.abs(netProfit).toFixed(2)}元`,
           stockName: position.stockName,
@@ -358,7 +363,7 @@ export const closePosition = (id: number): ClosedPosition | null => {
         amount: totalReceivedAmount,
         type: 'sell',
         timestamp: now.getTime(),
-        remark: `清仓 ${position.stockName} - ${position.shares}股 × ${position.currentPrice}元`,
+        remark: `清仓 ${position.stockName} : ${position.shares}股 × ${position.currentPrice}元`,
         stockName: position.stockName,
         stockCode: position.stockCode
       };
@@ -933,4 +938,402 @@ export const calculateReviewStats = (): ReviewStats => {
 export const getRecentReviews = (days: number): DailyReview[] => {
   const reviews = getDailyReviews();
   return reviews.slice(0, days);
+};
+
+// ================================
+// 期货管理相关函数
+// ================================
+
+// 获取当前期货持仓列表
+export const getCurrentFuturesPositions = (): FuturesRecord[] => {
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.FUTURES_POSITIONS);
+    return data ? JSON.parse(data) : [];
+  } catch (error) {
+    console.error('获取期货持仓数据失败:', error);
+    return [];
+  }
+};
+
+// 获取已清仓期货记录
+export const getClosedFuturesPositions = (): ClosedFuturesPosition[] => {
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.CLOSED_FUTURES);
+    return data ? JSON.parse(data) : [];
+  } catch (error) {
+    console.error('获取期货清仓记录失败:', error);
+    return [];
+  }
+};
+
+// 保存当前期货持仓列表
+const saveFuturesPositions = (positions: FuturesRecord[]): void => {
+  try {
+    localStorage.setItem(STORAGE_KEYS.FUTURES_POSITIONS, JSON.stringify(positions));
+  } catch (error) {
+    console.error('保存期货持仓数据失败:', error);
+  }
+};
+
+// 保存已清仓期货记录
+const saveClosedFuturesPositions = (positions: ClosedFuturesPosition[]): void => {
+  try {
+    localStorage.setItem(STORAGE_KEYS.CLOSED_FUTURES, JSON.stringify(positions));
+  } catch (error) {
+    console.error('保存期货清仓记录失败:', error);
+  }
+};
+
+// 添加新期货持仓
+export const addNewFuturesPosition = (
+  contractName: string,
+  contractCode: string,
+  direction: 'long' | 'short',
+  openPrice: number,
+  lots: number,
+  multiplier: number,
+  marginRate: number,
+  currentPrice: number,
+  stopLossPrice: number,
+  openDate: string = '',
+  remark: string = '',
+  strategy: string = ''
+): FuturesRecord => {
+  // 计算保证金金额
+  const contractValue = openPrice * lots * multiplier;
+  const margin = contractValue * (marginRate / 100);
+  
+  // 计算最大亏损（基于保证金）
+  const maxLoss = direction === 'long' 
+    ? (openPrice - stopLossPrice) * lots * multiplier
+    : (stopLossPrice - openPrice) * lots * multiplier;
+  const lossPercentage = (Math.abs(maxLoss) / margin) * 100;
+  
+  // 计算当前盈亏
+  const profit = direction === 'long'
+    ? (currentPrice - openPrice) * lots * multiplier
+    : (openPrice - currentPrice) * lots * multiplier;
+  
+  // 创建新记录
+  const now = new Date();
+  const id = now.getTime();
+  const today = now.toISOString().split('T')[0];
+  const actualOpenDate = openDate || today;
+  
+  const newRecord: FuturesRecord = {
+    id,
+    contractName,
+    contractCode,
+    direction,
+    openPrice,
+    lots,
+    multiplier,
+    margin,
+    marginRate,
+    currentPrice,
+    stopLossPrice,
+          openDate: actualOpenDate,
+      remark,
+      strategy: strategy as InvestStrategy || undefined,
+      maxLoss: Math.abs(maxLoss),
+    lossPercentage,
+    currentProfit: profit,
+    priceHistory: [
+      {
+        date: today,
+        price: currentPrice,
+        profit,
+        remark: '开仓价格'
+      }
+    ]
+  };
+  
+  // 添加资金记录 - 期货保证金支出
+  try {
+    const capitalRecords = getCapitalRecords();
+    const buyRecordId = generateId();
+    const newCapitalRecord: CapitalRecord = {
+      id: buyRecordId,
+      date: actualOpenDate,
+      amount: margin,
+      type: 'buy',
+      timestamp: now.getTime(),
+      remark: `开仓 ${contractName}(${contractCode}) : ${lots}手 × ${openPrice}元 (${direction === 'long' ? '做多' : '做空'})`,
+      stockName: contractName,
+      stockCode: contractCode
+    };
+    
+    // 将买入记录ID存储到持仓记录中
+    newRecord.buyRecordId = buyRecordId;
+    
+    capitalRecords.push(newCapitalRecord);
+    capitalRecords.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    localStorage.setItem('capitalRecords', JSON.stringify(capitalRecords));
+  } catch (error) {
+    console.error('添加期货开仓资金记录失败:', error);
+  }
+  
+  // 添加到列表
+  const positions = getCurrentFuturesPositions();
+  positions.push(newRecord);
+  saveFuturesPositions(positions);
+  
+  return newRecord;
+};
+
+// 更新期货持仓
+export const updateFuturesPosition = (record: FuturesRecord): void => {
+  const positions = getCurrentFuturesPositions();
+  const index = positions.findIndex(item => item.id === record.id);
+  
+  if (index !== -1) {
+    positions[index] = record;
+    saveFuturesPositions(positions);
+  }
+};
+
+// 删除期货持仓
+export const deleteFuturesPosition = (id: number): void => {
+  const positions = getCurrentFuturesPositions();
+  const index = positions.findIndex(item => item.id === id);
+  
+  if (index !== -1) {
+    const position = positions[index];
+    
+    // 删除对应的保证金记录（如果存在）
+    try {
+      if (position.buyRecordId) {
+        const capitalRecords = getCapitalRecords();
+        const filteredRecords = capitalRecords.filter(record => record.id !== position.buyRecordId);
+        
+        filteredRecords.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        localStorage.setItem('capitalRecords', JSON.stringify(filteredRecords));
+      }
+    } catch (error) {
+      console.error('删除期货保证金记录失败:', error);
+    }
+    
+    // 删除持仓记录
+    const filteredPositions = positions.filter(item => item.id !== id);
+    saveFuturesPositions(filteredPositions);
+  }
+};
+
+// 添加期货价格记录
+export const addFuturesPriceRecord = (
+  positionId: number,
+  price: number,
+  date: string,
+  remark: string = ''
+): void => {
+  const positions = getCurrentFuturesPositions();
+  const index = positions.findIndex(item => item.id === positionId);
+  
+  if (index !== -1) {
+    const position = positions[index];
+    const profit = position.direction === 'long'
+      ? (price - position.openPrice) * position.lots * position.multiplier
+      : (position.openPrice - price) * position.lots * position.multiplier;
+    
+    // 添加价格记录
+    position.priceHistory.push({
+      date,
+      price,
+      profit,
+      remark
+    });
+    
+    // 更新当前价格和盈亏
+    position.currentPrice = price;
+    position.currentProfit = profit;
+    
+    // 保存更新
+    positions[index] = position;
+    saveFuturesPositions(positions);
+  }
+};
+
+// 期货平仓操作
+export const closeFuturesPosition = (id: number): ClosedFuturesPosition | null => {
+  const positions = getCurrentFuturesPositions();
+  const index = positions.findIndex(item => item.id === id);
+  
+  if (index === -1) {
+    return null;
+  }
+  
+  const position = positions[index];
+  
+  // 保存历史价格数据
+  try {
+    const historicalData = localStorage.getItem('historicalPriceData');
+    let historyData: { [key: number]: any[] } = {};
+    
+    if (historicalData) {
+      historyData = JSON.parse(historicalData);
+    }
+    
+    if (position.priceHistory && position.priceHistory.length > 0) {
+      historyData[position.id] = position.priceHistory;
+      localStorage.setItem('historicalPriceData', JSON.stringify(historyData));
+    }
+  } catch (error) {
+    console.error('保存期货历史价格数据失败:', error);
+  }
+  
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  
+  // 创建平仓记录
+  const closedPosition: ClosedFuturesPosition = {
+    id: position.id,
+    contractName: position.contractName,
+    contractCode: position.contractCode,
+    direction: position.direction,
+    openPrice: position.openPrice,
+    lots: position.lots,
+    multiplier: position.multiplier,
+    margin: position.margin,
+    openDate: position.openDate,
+    closedPrice: position.currentPrice,
+    closedAt: today,
+    finalProfit: position.currentProfit,
+    remark: position.remark,
+    strategy: position.strategy
+  };
+  
+  // 添加资金记录 - 期货平仓净利润
+  try {
+    const capitalRecords = getCapitalRecords();
+    
+    // 查找对应的保证金记录
+    const marginRecord = capitalRecords.find(record => 
+      record.id === position.buyRecordId && record.type === 'buy'
+    );
+    
+    if (marginRecord) {
+      // 只记录净利润，不记录保证金返还
+      if (position.currentProfit !== 0) {
+        const profitRecord: CapitalRecord = {
+          id: generateId(),
+          date: today,
+          amount: position.currentProfit, // 保持原始值，可以是正数或负数
+          type: 'profit', // 统一使用profit类型，无论盈利还是亏损
+          timestamp: now.getTime(),
+          remark: `平仓 ${position.contractName}(${position.contractCode}) - 净${position.currentProfit > 0 ? '盈利' : '亏损'} ${Math.abs(position.currentProfit).toFixed(2)}元`,
+          stockName: position.contractName,
+          stockCode: position.contractCode,
+          relatedBuyId: position.buyRecordId
+        };
+        
+        capitalRecords.push(profitRecord);
+        capitalRecords.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        localStorage.setItem('capitalRecords', JSON.stringify(capitalRecords));
+      }
+    }
+  } catch (error) {
+    console.error('添加期货平仓资金记录失败:', error);
+  }
+  
+  // 添加到清仓列表
+  const closedPositions = getClosedFuturesPositions();
+  closedPositions.push(closedPosition);
+  saveClosedFuturesPositions(closedPositions);
+  
+  // 从当前持仓中删除
+  positions.splice(index, 1);
+  saveFuturesPositions(positions);
+  
+  return closedPosition;
+};
+
+// 计算期货投资统计
+export const calculateFuturesStats = () => {
+  const positions = getCurrentFuturesPositions();
+  
+  if (positions.length === 0) {
+    return {
+      totalMargin: 0,
+      totalMaxLoss: 0,
+      averageLossPercentage: 0,
+      currentProfitPercentage: 0,
+      totalProfit: 0,
+      recordCount: 0,
+      longPositions: 0,
+      shortPositions: 0
+    };
+  }
+  
+  let totalMargin = 0;
+  let totalMaxLoss = 0;
+  let totalLossPercentage = 0;
+  let totalProfit = 0;
+  let longPositions = 0;
+  let shortPositions = 0;
+  
+  positions.forEach(position => {
+    totalMargin += position.margin;
+    totalMaxLoss += position.maxLoss;
+    totalLossPercentage += position.lossPercentage;
+    totalProfit += position.currentProfit;
+    
+    if (position.direction === 'long') {
+      longPositions++;
+    } else {
+      shortPositions++;
+    }
+  });
+  
+  const averageLossPercentage = totalLossPercentage / positions.length;
+  const currentProfitPercentage = totalMargin > 0 ? (totalProfit / totalMargin) * 100 : 0;
+  
+  return {
+    totalMargin,
+    totalMaxLoss,
+    averageLossPercentage,
+    currentProfitPercentage,
+    totalProfit,
+    recordCount: positions.length,
+    longPositions,
+    shortPositions
+  };
+}; 
+
+// 删除期货清仓记录
+export const deleteClosedFuturesPosition = (id: number): void => {
+  const positions = getClosedFuturesPositions();
+  const index = positions.findIndex(item => item.id === id);
+  
+  if (index !== -1) {
+    const closedPosition = positions[index];
+    
+    // 撤销对应的平仓资金记录
+    try {
+      const capitalRecords = getCapitalRecords();
+      const now = new Date();
+      const today = now.toISOString().split('T')[0];
+      
+      // 如果有盈利记录，需要撤销
+      if (closedPosition.finalProfit !== 0) {
+        const cancelCapitalRecord: CapitalRecord = {
+          id: generateId(),
+          date: today,
+          amount: Math.abs(closedPosition.finalProfit),
+          type: closedPosition.finalProfit > 0 ? 'withdraw' : 'deposit',
+          timestamp: now.getTime(),
+          remark: `删除期货清仓记录 ${closedPosition.contractName}(${closedPosition.contractCode}) - 撤销${closedPosition.finalProfit > 0 ? '盈利' : '亏损'} ${Math.abs(closedPosition.finalProfit).toFixed(2)}元`
+        };
+        
+        capitalRecords.push(cancelCapitalRecord);
+        capitalRecords.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        localStorage.setItem('capitalRecords', JSON.stringify(capitalRecords));
+      }
+    } catch (error) {
+      console.error('撤销期货平仓资金记录失败:', error);
+    }
+    
+    // 删除清仓记录
+    const filteredPositions = positions.filter(item => item.id !== id);
+    saveClosedFuturesPositions(filteredPositions);
+  }
 }; 

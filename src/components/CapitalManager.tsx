@@ -6,7 +6,8 @@ import {
   DeleteOutlined, 
   ExclamationCircleOutlined,
   WalletOutlined,
-  LineChartOutlined
+  LineChartOutlined,
+  FallOutlined
 } from '@ant-design/icons';
 import { 
   addCapital, 
@@ -31,6 +32,7 @@ const CapitalManager: React.FC<CapitalManagerProps> = ({ onDataChange, refresh }
   const [loading, setLoading] = useState(false);
   const [currentCapital, setCurrentCapital] = useState(0);
   const [totalInvestment, setTotalInvestment] = useState(0);
+  const [maxDrawdown, setMaxDrawdown] = useState(0);
   const [messageApi, contextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
   const chartRef = useRef<HTMLDivElement>(null);
@@ -180,6 +182,19 @@ const CapitalManager: React.FC<CapitalManagerProps> = ({ onDataChange, refresh }
     }
   };
 
+  // 计算单笔最大回撤
+  const calculateMaxDrawdown = (records: CapitalRecord[]): number => {
+    // 找出所有清仓记录中的最大亏损
+    const profitRecords = records.filter(record => record.type === 'profit');
+    if (profitRecords.length === 0) return 0;
+    
+    const losses = profitRecords
+      .filter(record => record.amount < 0)
+      .map(record => Math.abs(record.amount));
+    
+    return losses.length > 0 ? Math.max(...losses) : 0;
+  };
+
   // 加载资金记录
   const loadRecords = () => {
     setLoading(true);
@@ -188,6 +203,7 @@ const CapitalManager: React.FC<CapitalManagerProps> = ({ onDataChange, refresh }
       setRecords(data);
       setCurrentCapital(calculateCurrentCapital());
       setTotalInvestment(calculateTotalInvestment());
+      setMaxDrawdown(calculateMaxDrawdown(data));
     } catch (error) {
       console.error('加载资金记录失败:', error);
       messageApi.error('加载资金记录失败');
@@ -430,6 +446,15 @@ const CapitalManager: React.FC<CapitalManagerProps> = ({ onDataChange, refresh }
                   {availableCapital.toFixed(2)}元
                 </div>
               </div>
+              <div className="stat-card">
+                <div className="stat-card-title">
+                  <FallOutlined style={{ marginRight: 4 }} />
+                  单笔最大回撤
+                </div>
+                <div className="stat-card-value" style={{ color: '#f5222d' }}>
+                  {maxDrawdown.toFixed(2)}元
+                </div>
+              </div>
             </div>
 
             <Form form={form} layout="vertical">
@@ -468,19 +493,8 @@ const CapitalManager: React.FC<CapitalManagerProps> = ({ onDataChange, refresh }
         </Col>
         
         <Col xs={24} lg={14}>
-          <Card title="资金记录" bordered={false} style={{ marginBottom: 24 }}>
-            <Table
-              dataSource={records}
-              columns={columns}
-              rowKey="id"
-              loading={loading}
-              pagination={{ pageSize: 10 }}
-              locale={{ emptyText: '暂无资金记录' }}
-            />
-          </Card>
-
           {records.length > 0 && (
-            <Card title="资金曲线" bordered={false}>
+            <Card title="资金曲线" bordered={false} style={{ marginBottom: 24 }}>
               <div 
                 ref={chartRef} 
                 style={{ 
@@ -491,6 +505,17 @@ const CapitalManager: React.FC<CapitalManagerProps> = ({ onDataChange, refresh }
               />
             </Card>
           )}
+
+          <Card title="资金记录" bordered={false}>
+            <Table
+              dataSource={records}
+              columns={columns}
+              rowKey="id"
+              loading={loading}
+              pagination={{ pageSize: 10 }}
+              locale={{ emptyText: '暂无资金记录' }}
+            />
+          </Card>
         </Col>
       </Row>
     </div>

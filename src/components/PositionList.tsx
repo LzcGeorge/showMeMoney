@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Space, message, Modal, Tag, Tooltip } from 'antd';
-import { EditOutlined, DeleteOutlined, ExclamationCircleOutlined, InfoCircleOutlined, DollarOutlined, LinkOutlined } from '@ant-design/icons';
+import { Card, Table, Button, Space, message, Modal, Tag, Tooltip, Select } from 'antd';
+import { EditOutlined, DeleteOutlined, ExclamationCircleOutlined, DollarOutlined, PlusOutlined, LinkOutlined } from '@ant-design/icons';
 import type { InvestRecord } from '../types';
 import { getCurrentPositions, deletePosition, closePosition } from '../services/investService';
-import PositionDetail from './PositionDetail';
-import PositionEdit from './PositionEdit';
+import { STRATEGY_LABELS, STRATEGY_OPTIONS } from '../types';
+import StockPositionForm from './StockPositionForm';
 
 interface PositionListProps {
   onDataChange?: () => void;
@@ -13,12 +13,13 @@ interface PositionListProps {
 
 const PositionList: React.FC<PositionListProps> = ({ onDataChange, refresh }) => {
   const [positions, setPositions] = useState<InvestRecord[]>([]);
+  const [filteredPositions, setFilteredPositions] = useState<InvestRecord[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState<InvestRecord | null>(null);
-  const [isDetailVisible, setIsDetailVisible] = useState(false);
-  const [isEditVisible, setIsEditVisible] = useState(false);
+  const [isFormVisible, setIsFormVisible] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<InvestRecord | null>(null);
   const [messageApi, contextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
+  const [strategyFilter, setStrategyFilter] = useState<string>('');
 
   // 加载持仓数据
   const loadPositions = () => {
@@ -26,6 +27,7 @@ const PositionList: React.FC<PositionListProps> = ({ onDataChange, refresh }) =>
     try {
       const data = getCurrentPositions();
       setPositions(data);
+      setFilteredPositions(data);
     } catch (error) {
       console.error('加载持仓数据失败:', error);
       messageApi.error('加载持仓数据失败');
@@ -45,16 +47,25 @@ const PositionList: React.FC<PositionListProps> = ({ onDataChange, refresh }) =>
     }
   }, [refresh]);
 
-  // 查看详情
-  const handleViewDetail = (record: InvestRecord) => {
-    setSelectedRecord(record);
-    setIsDetailVisible(true);
+  // 策略筛选
+  useEffect(() => {
+    let filtered = [...positions];
+    if (strategyFilter) {
+      filtered = filtered.filter(position => position.strategy === strategyFilter);
+    }
+    setFilteredPositions(filtered);
+  }, [positions, strategyFilter]);
+
+  // 添加新持仓
+  const handleAdd = () => {
+    setEditingRecord(null);
+    setIsFormVisible(true);
   };
 
   // 编辑记录
   const handleEdit = (record: InvestRecord) => {
-    setSelectedRecord(record);
-    setIsEditVisible(true);
+    setEditingRecord(record);
+    setIsFormVisible(true);
   };
 
   // 删除记录
@@ -124,9 +135,10 @@ const PositionList: React.FC<PositionListProps> = ({ onDataChange, refresh }) =>
     });
   };
 
-  // 编辑完成回调
-  const handleEditComplete = () => {
-    setIsEditVisible(false);
+  // 表单提交成功回调
+  const handleFormSuccess = () => {
+    setIsFormVisible(false);
+    setEditingRecord(null);
     loadPositions();
     if (onDataChange) {
       onDataChange();
@@ -184,6 +196,15 @@ const PositionList: React.FC<PositionListProps> = ({ onDataChange, refresh }) =>
       render: (code: string) => code || '-'
     },
     {
+      title: '策略',
+      dataIndex: 'strategy',
+      key: 'strategy',
+      width: 120,
+      render: (strategy: string) => strategy ? (
+        <Tag color="blue">{STRATEGY_LABELS[strategy as keyof typeof STRATEGY_LABELS]}</Tag>
+      ) : '-'
+    },
+    {
       title: '当前价格',
       dataIndex: 'currentPrice',
       key: 'currentPrice',
@@ -227,6 +248,13 @@ const PositionList: React.FC<PositionListProps> = ({ onDataChange, refresh }) =>
             {percentage > 0 ? '+' : ''}{percentage.toFixed(2)}%
           </span>
         );
+      },
+      sorter: (a: InvestRecord, b: InvestRecord) => {
+        const aInvestment = a.buyPrice * a.shares;
+        const bInvestment = b.buyPrice * b.shares;
+        const aPercentage = (a.currentProfit / aInvestment) * 100;
+        const bPercentage = (b.currentProfit / bInvestment) * 100;
+        return aPercentage - bPercentage;
       }
     },
     {
@@ -240,26 +268,15 @@ const PositionList: React.FC<PositionListProps> = ({ onDataChange, refresh }) =>
             {profit > 0 ? '+' : ''}{profit.toFixed(2)}元
           </span>
         );
-      }
+      },
+      sorter: (a: InvestRecord, b: InvestRecord) => a.currentProfit - b.currentProfit
     },
     {
       title: '操作',
       key: 'action',
-      width: 220,
+      width: 180,
       render: (_: any, record: InvestRecord) => (
         <Space size="small">
-          <Tooltip title="详情">
-            <Button 
-              type="text" 
-              icon={<InfoCircleOutlined />} 
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('详情按钮被点击:', record);
-                handleViewDetail(record);
-              }}
-            />
-          </Tooltip>
           <Tooltip title="编辑">
             <Button 
               type="text" 
@@ -267,7 +284,6 @@ const PositionList: React.FC<PositionListProps> = ({ onDataChange, refresh }) =>
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                console.log('编辑按钮被点击:', record);
                 handleEdit(record);
               }}
             />
@@ -291,7 +307,6 @@ const PositionList: React.FC<PositionListProps> = ({ onDataChange, refresh }) =>
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                console.log('清仓按钮被点击:', record);
                 handleClosePosition(record);
               }}
             />
@@ -304,7 +319,6 @@ const PositionList: React.FC<PositionListProps> = ({ onDataChange, refresh }) =>
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                console.log('删除按钮被点击:', record);
                 handleDelete(record);
               }}
             />
@@ -319,11 +333,35 @@ const PositionList: React.FC<PositionListProps> = ({ onDataChange, refresh }) =>
       {contextHolder}
       {modalContextHolder}
       <Card 
-        title="当前持仓" 
+        title="股票持仓" 
         bordered={false}
+        extra={
+          <Space>
+            <Select
+              placeholder="筛选策略"
+              style={{ width: 120 }}
+              value={strategyFilter || undefined}
+              onChange={(value) => setStrategyFilter(value || '')}
+              allowClear
+            >
+              {STRATEGY_OPTIONS.map(option => (
+                <Select.Option key={option.value} value={option.value}>
+                  {option.label}
+                </Select.Option>
+              ))}
+            </Select>
+            <Button 
+              type="primary" 
+              icon={<PlusOutlined />} 
+              onClick={handleAdd}
+            >
+              添加持仓
+            </Button>
+          </Space>
+        }
       >
         <Table
-          dataSource={positions}
+          dataSource={filteredPositions}
           columns={columns}
           rowKey="id"
           loading={loading}
@@ -333,24 +371,16 @@ const PositionList: React.FC<PositionListProps> = ({ onDataChange, refresh }) =>
         />
       </Card>
 
-      {/* 详情弹窗 */}
-      {selectedRecord && (
-        <PositionDetail
-          visible={isDetailVisible}
-          record={selectedRecord}
-          onClose={() => setIsDetailVisible(false)}
-        />
-      )}
-
-      {/* 编辑弹窗 */}
-      {selectedRecord && (
-        <PositionEdit
-          visible={isEditVisible}
-          record={selectedRecord}
-          onClose={() => setIsEditVisible(false)}
-          onSuccess={handleEditComplete}
-        />
-      )}
+      {/* 添加/编辑表单 */}
+      <StockPositionForm
+        visible={isFormVisible}
+        record={editingRecord}
+        onClose={() => {
+          setIsFormVisible(false);
+          setEditingRecord(null);
+        }}
+        onSuccess={handleFormSuccess}
+      />
     </>
   );
 };
