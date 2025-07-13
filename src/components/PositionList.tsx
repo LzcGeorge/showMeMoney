@@ -189,13 +189,6 @@ const PositionList: React.FC<PositionListProps> = ({ onDataChange, refresh }) =>
       )
     },
     {
-      title: '股票代码',
-      dataIndex: 'stockCode',
-      key: 'stockCode',
-      width: 100,
-      render: (code: string) => code || '-'
-    },
-    {
       title: '策略',
       dataIndex: 'strategy',
       key: 'strategy',
@@ -203,12 +196,6 @@ const PositionList: React.FC<PositionListProps> = ({ onDataChange, refresh }) =>
       render: (strategy: string) => strategy ? (
         <Tag color="blue">{STRATEGY_LABELS[strategy as keyof typeof STRATEGY_LABELS]}</Tag>
       ) : '-'
-    },
-    {
-      title: '当前价格',
-      dataIndex: 'currentPrice',
-      key: 'currentPrice',
-      render: (price: number) => `${price.toFixed(2)}元`
     },
     {
       title: '止损价格',
@@ -225,16 +212,6 @@ const PositionList: React.FC<PositionListProps> = ({ onDataChange, refresh }) =>
       dataIndex: 'maxLoss',
       key: 'maxLoss',
       render: (loss: number) => `${loss.toFixed(2)}元`
-    },
-    {
-      title: '止损比例',
-      dataIndex: 'lossPercentage',
-      key: 'lossPercentage',
-      render: (percentage: number) => (
-        <Tag color={percentage > 10 ? 'red' : percentage > 7 ? 'orange' : 'green'}>
-          {percentage.toFixed(2)}%
-        </Tag>
-      )
     },
     {
       title: '当前盈亏%',
@@ -270,6 +247,28 @@ const PositionList: React.FC<PositionListProps> = ({ onDataChange, refresh }) =>
         );
       },
       sorter: (a: InvestRecord, b: InvestRecord) => a.currentProfit - b.currentProfit
+    },
+    {
+      title: '备注',
+      dataIndex: 'remark',
+      key: 'remark',
+      width: 200,
+      render: (remark: string) => (
+        <span
+          title={remark}
+          style={{ 
+            whiteSpace: 'pre-wrap', 
+            wordBreak: 'break-all',
+            display: '-webkit-box',
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            lineHeight: '1.4'
+          }}
+        >
+          {remark || '-'}
+        </span>
+      )
     },
     {
       title: '操作',

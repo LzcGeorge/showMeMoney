@@ -479,27 +479,37 @@ const DailyReviewList: React.FC<DailyReviewListProps> = ({ onDataChange, refresh
 
             <div style={{ marginBottom: 16 }}>
               <Title level={5}>市场概况</Title>
-              <Text>{selectedReview.marketOverview || '-'}</Text>
+              <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                {selectedReview.marketOverview || '-'}
+              </div>
             </div>
 
             <div style={{ marginBottom: 16 }}>
               <Title level={5}>持仓回顾</Title>
-              <Text>{selectedReview.positionReview || '-'}</Text>
+              <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                {selectedReview.positionReview || '-'}
+              </div>
             </div>
 
             <div style={{ marginBottom: 16 }}>
               <Title level={5}>交易分析</Title>
-              <Text>{selectedReview.tradeAnalysis || '-'}</Text>
+              <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                {selectedReview.tradeAnalysis || '-'}
+              </div>
             </div>
 
             <div style={{ marginBottom: 16 }}>
               <Title level={5}>经验教训</Title>
-              <Text>{selectedReview.lessons || '-'}</Text>
+              <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                {selectedReview.lessons || '-'}
+              </div>
             </div>
 
             <div style={{ marginBottom: 16 }}>
               <Title level={5}>明日计划</Title>
-              <Text>{selectedReview.nextPlan || '-'}</Text>
+              <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                {selectedReview.nextPlan || '-'}
+              </div>
             </div>
 
             <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #f0f0f0' }}>

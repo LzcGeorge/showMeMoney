@@ -517,7 +517,7 @@ export const exportAllData = () => {
   };
 };
 
-// 导入数据
+// 导入数据（直接覆盖模式）
 export const importData = (data: any): ImportResult => {
   try {
     // 验证数据结构
@@ -530,154 +530,88 @@ export const importData = (data: any): ImportResult => {
     
     let importCount = 0;
     
-    // 导入当前持仓
+    // 导入当前持仓（直接覆盖）
     if (data.currentPositions && Array.isArray(data.currentPositions)) {
-      const currentPositions = getCurrentPositions();
-      const mergedPositions = [...currentPositions];
-      
-      data.currentPositions.forEach((item: InvestRecord) => {
-        const existingIndex = mergedPositions.findIndex(
-          existing => existing.id === item.id
-        );
-        
-        if (existingIndex === -1) {
-          // 确保数据格式正确
-          const validatedItem: InvestRecord = {
-            ...item,
-            priceHistory: item.priceHistory || []
-          };
-          mergedPositions.push(validatedItem);
-          importCount++;
-        }
-      });
-      
-      saveCurrentPositions(mergedPositions);
+      const validatedPositions = data.currentPositions.map((item: InvestRecord) => ({
+        ...item,
+        priceHistory: item.priceHistory || []
+      }));
+      saveCurrentPositions(validatedPositions);
+      importCount += validatedPositions.length;
     }
     
-    // 导入清仓记录
+    // 导入清仓记录（直接覆盖）
     if (data.closedPositions && Array.isArray(data.closedPositions)) {
-      const closedPositions = getClosedPositions();
-      const mergedPositions = [...closedPositions];
-      
-      data.closedPositions.forEach((item: ClosedPosition) => {
-        const existingIndex = mergedPositions.findIndex(
-          existing => existing.id === item.id
-        );
-        
-        if (existingIndex === -1) {
-          mergedPositions.push(item);
-          importCount++;
-        }
-      });
-      
-      saveClosedPositions(mergedPositions);
+      saveClosedPositions(data.closedPositions);
+      importCount += data.closedPositions.length;
     }
     
-    // 导入历史价格数据
+    // 导入期货持仓（直接覆盖）
+    if (data.futuresPositions && Array.isArray(data.futuresPositions)) {
+      saveFuturesPositions(data.futuresPositions);
+      importCount += data.futuresPositions.length;
+    }
+    
+    // 导入期货清仓记录（直接覆盖）
+    if (data.closedFutures && Array.isArray(data.closedFutures)) {
+      saveClosedFuturesPositions(data.closedFutures);
+      importCount += data.closedFutures.length;
+    }
+    
+    // 导入历史价格数据（直接覆盖）
     if (data.historicalPriceData && typeof data.historicalPriceData === 'object') {
       try {
-        const existingHistoricalData = localStorage.getItem('historicalPriceData');
-        let mergedHistoricalData = existingHistoricalData ? JSON.parse(existingHistoricalData) : {};
-        
-        // 合并历史价格数据
-        Object.keys(data.historicalPriceData).forEach(key => {
-          if (!mergedHistoricalData[key]) {
-            mergedHistoricalData[key] = data.historicalPriceData[key];
-            importCount++;
-          }
-        });
-        
-        localStorage.setItem('historicalPriceData', JSON.stringify(mergedHistoricalData));
+        localStorage.setItem('historicalPriceData', JSON.stringify(data.historicalPriceData));
+        importCount += Object.keys(data.historicalPriceData).length;
       } catch (error) {
         console.error('导入历史价格数据失败:', error);
       }
     }
     
-    // 优先导入新格式的资金记录
+    // 导入资金记录（直接覆盖）
     if (data.capitalRecords && Array.isArray(data.capitalRecords)) {
-      const capitalRecords = getCapitalRecords();
-      const mergedRecords = [...capitalRecords];
-      
-      data.capitalRecords.forEach((item: CapitalRecord) => {
-        const existingIndex = mergedRecords.findIndex(
-          existing => existing.id === item.id || existing.timestamp === item.timestamp
-        );
-        
-        if (existingIndex === -1) {
-          mergedRecords.push(item);
-          importCount++;
-        }
-      });
-      
       // 按日期排序
-      mergedRecords.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      localStorage.setItem('capitalRecords', JSON.stringify(mergedRecords));
+      const sortedRecords = [...data.capitalRecords].sort((a: CapitalRecord, b: CapitalRecord) => 
+        new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+      localStorage.setItem('capitalRecords', JSON.stringify(sortedRecords));
+      importCount += sortedRecords.length;
     }
     // 如果没有新格式，尝试导入旧格式的资金历史（向后兼容）
     else if (data.capitalHistory && Array.isArray(data.capitalHistory)) {
-      const capitalRecords = getCapitalRecords();
-      const mergedRecords = [...capitalRecords];
-      
-      // 将旧格式转换为新格式
-      data.capitalHistory.forEach((item: any) => {
-        const existingIndex = mergedRecords.findIndex(
-          existing => existing.timestamp === item.timestamp
-        );
-        
-        if (existingIndex === -1) {
-          // 转换旧格式到新格式
-          const newRecord: CapitalRecord = {
-            id: generateId(),
-            date: item.date,
-            amount: item.amount,
-            type: item.amount > 0 ? 'deposit' : 'withdraw', // 简单判断类型
-            timestamp: item.timestamp,
-            remark: item.remark || ''
-          };
-          mergedRecords.push(newRecord);
-          importCount++;
-        }
-      });
+      const convertedRecords = data.capitalHistory.map((item: any) => ({
+        id: generateId(),
+        date: item.date,
+        amount: item.amount,
+        type: item.amount > 0 ? 'deposit' : 'withdraw',
+        timestamp: item.timestamp,
+        remark: item.remark || ''
+      }));
       
       // 按日期排序
-      mergedRecords.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      localStorage.setItem('capitalRecords', JSON.stringify(mergedRecords));
+      convertedRecords.sort((a: CapitalRecord, b: CapitalRecord) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      localStorage.setItem('capitalRecords', JSON.stringify(convertedRecords));
+      importCount += convertedRecords.length;
     }
     
-    // 导入复盘记录
+    // 导入复盘记录（直接覆盖）
     if (data.dailyReviews && Array.isArray(data.dailyReviews)) {
-      const dailyReviews = getDailyReviews();
-      const mergedReviews = [...dailyReviews];
-      
-      data.dailyReviews.forEach((item: DailyReview) => {
-        const existingIndex = mergedReviews.findIndex(
-          existing => existing.id === item.id || existing.date === item.date
-        );
-        
-        if (existingIndex === -1) {
-          mergedReviews.push(item);
-          importCount++;
-        }
-      });
-      
       // 按日期排序
-      mergedReviews.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      saveDailyReviews(mergedReviews);
+      const sortedReviews = [...data.dailyReviews].sort((a: DailyReview, b: DailyReview) => 
+        new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      saveDailyReviews(sortedReviews);
+      importCount += sortedReviews.length;
     }
     
-    // 导入初始资金（如果当前为0）
-    let capitalImported = false;
+    // 导入初始资金（直接覆盖）
     if (data.initialCapital && typeof data.initialCapital === 'number') {
-      const currentInitialCapital = getInitialCapital();
-      if (currentInitialCapital === 0) {
-        saveInitialCapital(data.initialCapital);
-        capitalImported = true;
-      }
+      saveInitialCapital(data.initialCapital);
     }
     
     return { 
       success: true, 
-      message: `成功导入 ${importCount} 条记录${capitalImported ? '，并设置初始资金' : ''}` 
+      message: `成功导入并覆盖了 ${importCount} 条记录` 
     };
   } catch (error) {
     console.error('导入数据失败:', error);

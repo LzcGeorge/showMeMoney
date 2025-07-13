@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Select, DatePicker, Space, Tag, Row, Col, Statistic, Popconfirm } from 'antd';
-import { DeleteOutlined, FallOutlined, RiseOutlined } from '@ant-design/icons';
+import { Card, Table, Button, Select, DatePicker, Space, Tag, Row, Col, Statistic, Popconfirm, Modal, Descriptions } from 'antd';
+import { DeleteOutlined, FallOutlined, RiseOutlined, EyeOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { getClosedPositions, getClosedFuturesPositions, deleteClosedPosition, deleteClosedFuturesPosition } from '../services/investService';
 import { STRATEGY_LABELS, STRATEGY_OPTIONS } from '../types';
@@ -43,6 +43,8 @@ const ClosedPositionList: React.FC<ClosedPositionListProps> = ({ onDataChange, r
   const [profitFilter, setProfitFilter] = useState<'all' | 'profit' | 'loss'>('all');
   const [typeFilter, setTypeFilter] = useState<'all' | 'stock' | 'futures'>('all');
   const [strategyFilter, setStrategyFilter] = useState<string>('');
+  const [selectedRecord, setSelectedRecord] = useState<CombinedClosedPosition | null>(null);
+  const [isDetailVisible, setIsDetailVisible] = useState(false);
 
   useEffect(() => {
     loadClosedPositions();
@@ -148,6 +150,11 @@ const ClosedPositionList: React.FC<ClosedPositionListProps> = ({ onDataChange, r
     }
   };
 
+  const handleViewDetail = (record: CombinedClosedPosition) => {
+    setSelectedRecord(record);
+    setIsDetailVisible(true);
+  };
+
   const clearFilters = () => {
     setDateRange(null);
     setProfitFilter('all');
@@ -187,12 +194,11 @@ const ClosedPositionList: React.FC<ClosedPositionListProps> = ({ onDataChange, r
     {
       title: '基本信息',
       key: 'info',
-      width: 200,
+      width: 150,
       render: (record: CombinedClosedPosition) => (
         <div>
           <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '4px' }}>{record.name}</div>
           {record.code && <div style={{ color: '#8c8c8c', fontSize: '12px' }}>{record.code}</div>}
-          {record.remark && <div style={{ color: '#8c8c8c', fontSize: '12px', marginTop: '2px' }}>{record.remark}</div>}
         </div>
       )
     },
@@ -299,20 +305,55 @@ const ClosedPositionList: React.FC<ClosedPositionListProps> = ({ onDataChange, r
         new Date(a.closedAt).getTime() - new Date(b.closedAt).getTime()
     },
     {
+      title: '备注',
+      dataIndex: 'remark',
+      key: 'remark',
+      width: 200,
+      render: (remark: string) => (
+        <span
+          title={remark}
+          style={{ 
+            whiteSpace: 'pre-wrap', 
+            wordBreak: 'break-all',
+            display: '-webkit-box',
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            lineHeight: '1.4'
+          }}
+        >
+          {remark || '-'}
+        </span>
+      )
+    },
+    {
       title: '操作',
       key: 'action',
       width: 80,
       render: (record: CombinedClosedPosition) => (
-        <Popconfirm
-          title="确定要删除这条清仓记录吗？"
-          onConfirm={() => handleDeletePosition(record.id, record.type)}
-          okText="确定"
-          cancelText="取消"
-        >
-          <Button type="link" danger icon={<DeleteOutlined />} size="small">
-            删除
-          </Button>
-        </Popconfirm>
+        <Space size="small">
+          <Button 
+            type="text" 
+            icon={<EyeOutlined />} 
+            size="small"
+            title="查看详情"
+            onClick={() => handleViewDetail(record)}
+          />
+          <Popconfirm
+            title="确定要删除这条清仓记录吗？"
+            onConfirm={() => handleDeletePosition(record.id, record.type)}
+            okText="确定"
+            cancelText="取消"
+          >
+            <Button 
+              type="text" 
+              danger 
+              icon={<DeleteOutlined />} 
+              size="small"
+              title="删除"
+            />
+          </Popconfirm>
+        </Space>
       ),
     },
   ];
@@ -422,6 +463,81 @@ const ClosedPositionList: React.FC<ClosedPositionListProps> = ({ onDataChange, r
           scroll={{ x: 'max-content' }}
         />
       </Card>
+
+      {/* 详情弹窗 */}
+      <Modal
+        title={selectedRecord ? `${selectedRecord.name} - 清仓详情` : '清仓详情'}
+        open={isDetailVisible}
+        onCancel={() => setIsDetailVisible(false)}
+        footer={null}
+        width={800}
+      >
+        {selectedRecord && (
+          <Descriptions bordered column={2}>
+            <Descriptions.Item label="名称">{selectedRecord.name}</Descriptions.Item>
+            <Descriptions.Item label="代码">{selectedRecord.code || '-'}</Descriptions.Item>
+            <Descriptions.Item label="类型">
+              <Tag color={selectedRecord.type === 'stock' ? 'green' : 'purple'}>
+                {selectedRecord.type === 'stock' ? '股票' : '期货'}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="策略">
+              {selectedRecord.strategy ? (
+                <Tag color="blue">{STRATEGY_LABELS[selectedRecord.strategy]}</Tag>
+              ) : '-'}
+            </Descriptions.Item>
+            
+            {selectedRecord.type === 'stock' ? (
+              <>
+                <Descriptions.Item label="买入价格">{formatCurrency(selectedRecord.buyPrice)}</Descriptions.Item>
+                <Descriptions.Item label="清仓价格">{formatCurrency(selectedRecord.closedPrice)}</Descriptions.Item>
+                <Descriptions.Item label="持股数量">{selectedRecord.shares} 股</Descriptions.Item>
+                <Descriptions.Item label="投资总额">{formatCurrency(selectedRecord.buyPrice * (selectedRecord.shares || 0))}</Descriptions.Item>
+              </>
+            ) : (
+              <>
+                <Descriptions.Item label="开仓价格">{formatCurrency(selectedRecord.buyPrice)}</Descriptions.Item>
+                <Descriptions.Item label="平仓价格">{formatCurrency(selectedRecord.closedPrice)}</Descriptions.Item>
+                <Descriptions.Item label="方向">
+                  <Tag color={selectedRecord.direction === 'long' ? 'red' : 'green'}>
+                    {selectedRecord.direction === 'long' ? '做多' : '做空'}
+                  </Tag>
+                </Descriptions.Item>
+                <Descriptions.Item label="手数">{selectedRecord.lots} 手</Descriptions.Item>
+                <Descriptions.Item label="合约乘数">{selectedRecord.multiplier}</Descriptions.Item>
+                <Descriptions.Item label="保证金">{formatCurrency(selectedRecord.margin || 0)}</Descriptions.Item>
+              </>
+            )}
+            
+            <Descriptions.Item label="买入日期">{selectedRecord.buyDate}</Descriptions.Item>
+            <Descriptions.Item label="清仓日期">{selectedRecord.closedAt}</Descriptions.Item>
+            <Descriptions.Item label="持有天数">
+              {Math.ceil((new Date(selectedRecord.closedAt).getTime() - new Date(selectedRecord.buyDate).getTime()) / (1000 * 60 * 60 * 24))} 天
+            </Descriptions.Item>
+            <Descriptions.Item label="最终盈亏">
+              <span style={{ 
+                color: selectedRecord.finalProfit >= 0 ? '#f5222d' : '#52c41a',
+                fontWeight: 'bold'
+              }}>
+                {selectedRecord.finalProfit >= 0 ? <RiseOutlined /> : <FallOutlined />}
+                <span style={{ marginLeft: '4px' }}>
+                  {selectedRecord.finalProfit >= 0 ? '+' : ''}{formatCurrency(selectedRecord.finalProfit)}
+                </span>
+              </span>
+            </Descriptions.Item>
+            <Descriptions.Item label="盈亏比例">
+              <Tag color={selectedRecord.finalProfit >= 0 ? 'red' : 'green'}>
+                {selectedRecord.finalProfit >= 0 ? '+' : ''}{formatPercentage(selectedRecord)}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="备注" span={2}>
+              <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                {selectedRecord.remark || '无'}
+              </div>
+            </Descriptions.Item>
+          </Descriptions>
+        )}
+      </Modal>
     </div>
   );
 };

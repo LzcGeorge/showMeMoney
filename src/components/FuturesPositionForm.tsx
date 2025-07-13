@@ -49,7 +49,8 @@ const FuturesPositionForm: React.FC<FuturesPositionFormProps> = ({
         direction: 'long',
         marginRate: 10,
         openDate: dayjs(),
-        multiplier: 300
+        multiplier: 10,
+        lots: 1,
       });
     }
   }, [visible, record, form]);
@@ -167,7 +168,7 @@ const FuturesPositionForm: React.FC<FuturesPositionFormProps> = ({
             >
               <InputNumber
                 min={0}
-                step={0.01}
+                step={1}
                 style={{ width: '100%' }}
                 placeholder="开仓价格"
               />
@@ -181,7 +182,7 @@ const FuturesPositionForm: React.FC<FuturesPositionFormProps> = ({
             >
               <InputNumber
                 min={0}
-                step={0.01}
+                step={1}
                 style={{ width: '100%' }}
                 placeholder="当前价格"
               />
@@ -195,7 +196,7 @@ const FuturesPositionForm: React.FC<FuturesPositionFormProps> = ({
             >
               <InputNumber
                 min={0}
-                step={0.01}
+                step={1}
                 style={{ width: '100%' }}
                 placeholder="止损价格"
               />
@@ -238,7 +239,7 @@ const FuturesPositionForm: React.FC<FuturesPositionFormProps> = ({
               <InputNumber
                 min={0}
                 max={100}
-                step={0.1}
+                step={1}
                 style={{ width: '100%' }}
                 placeholder="如：10"
               />

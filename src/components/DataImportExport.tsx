@@ -229,8 +229,8 @@ const DataImportExport: React.FC<DataImportExportProps> = ({ onDataChange }) => 
       >
         <Alert
           message="导入说明"
-          description="导入将合并数据，不会覆盖现有数据。相同ID的记录将被跳过。"
-          type="info"
+          description="导入将直接覆盖现有数据，请确保已备份重要数据。所有现有记录将被导入的数据完全替换。"
+          type="warning"
           showIcon
           style={{ marginBottom: 16 }}
         />

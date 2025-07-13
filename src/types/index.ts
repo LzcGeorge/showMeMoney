@@ -195,25 +195,28 @@ export interface ClosedFuturesPosition {
 
 
 // 投资策略类型
-export type InvestStrategy = 'trend' | 'growth';
+export type InvestStrategy = 'trend' | 'growth' |'momentum' | 'other' ;
 
 // 策略标签映射
 export const STRATEGY_LABELS: Record<InvestStrategy, string> = {
   trend: '趋势回调',
+  momentum: 'RVC001',
   growth: 'RVC010',
+  other: '观察',
   // value: '价值',
   // momentum: '动量',
   // reversal: '反转',
   // arbitrage: '套利',
-  // other: '其他'
 };
 
 // 策略选项
 export const STRATEGY_OPTIONS: { value: InvestStrategy; label: string }[] = [
   { value: 'trend', label: '趋势回调' },
+  { value: 'momentum', label: 'RVC001' },
   { value: 'growth', label: 'RVC010' },
+  { value: 'other', label: '观察' },
+
   // { value: 'value', label: '价值' },
-  // { value: 'momentum', label: '动量' },
   // { value: 'reversal', label: '反转' },
   // { value: 'arbitrage', label: '套利' },
   // { value: 'other', label: '其他' }

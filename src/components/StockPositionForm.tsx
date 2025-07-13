@@ -44,7 +44,8 @@ const StockPositionForm: React.FC<StockPositionFormProps> = ({
       // 新建时重置表单
       form.resetFields();
       form.setFieldsValue({
-        buyDate: dayjs()
+        buyDate: dayjs(),
+        shares: 100,
       });
     }
     setLossInfo(null);
@@ -239,7 +240,8 @@ const StockPositionForm: React.FC<StockPositionFormProps> = ({
               style={{ flex: 1 }}
             >
               <InputNumber
-                min={1}
+                min={0}
+                step={100}
                 style={{ width: '100%' }}
                 placeholder="如：100"
               />

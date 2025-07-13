@@ -508,7 +508,19 @@ const CapitalManager: React.FC<CapitalManagerProps> = ({ onDataChange, refresh }
 
           <Card title="资金记录" bordered={false}>
             <Table
-              dataSource={records}
+              dataSource={records.sort((a, b) => {
+                // 先按日期排序，日期相同则按时间戳排序
+                const dateA = new Date(a.date).getTime();
+                const dateB = new Date(b.date).getTime();
+                if (dateA !== dateB) {
+                  return dateB - dateA; // 日期倒序
+                }
+                // 如果有时间戳，按时间戳倒序
+                if (a.timestamp && b.timestamp) {
+                  return b.timestamp - a.timestamp;
+                }
+                return 0;
+              })}
               columns={columns}
               rowKey="id"
               loading={loading}

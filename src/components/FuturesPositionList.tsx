@@ -160,12 +160,6 @@ const FuturesPositionList: React.FC<FuturesPositionListProps> = ({ onDataChange,
       )
     },
     {
-      title: '合约代码',
-      dataIndex: 'contractCode',
-      key: 'contractCode',
-      width: 120
-    },
-    {
       title: '方向',
       dataIndex: 'direction',
       key: 'direction',
@@ -229,23 +223,26 @@ const FuturesPositionList: React.FC<FuturesPositionListProps> = ({ onDataChange,
       sorter: (a: FuturesRecord, b: FuturesRecord) => a.currentProfit - b.currentProfit
     },
     {
-      title: '盈亏比例',
-      key: 'profitPercentage',
-      width: 100,
-      render: (_: any, record: FuturesRecord) => {
-        const percentage = (record.currentProfit / record.margin) * 100;
-        const color = percentage > 0 ? '#f5222d' : percentage < 0 ? '#52c41a' : '';
-        return (
-          <span style={{ color, fontWeight: 'bold' }}>
-            {percentage > 0 ? '+' : ''}{percentage.toFixed(2)}%
-          </span>
-        );
-      },
-      sorter: (a: FuturesRecord, b: FuturesRecord) => {
-        const aPercentage = (a.currentProfit / a.margin) * 100;
-        const bPercentage = (b.currentProfit / b.margin) * 100;
-        return aPercentage - bPercentage;
-      }
+      title: '备注',
+      dataIndex: 'remark',
+      key: 'remark',
+      width: 200,
+      render: (remark: string) => (
+        <span
+          title={remark}
+          style={{ 
+            whiteSpace: 'pre-wrap', 
+            wordBreak: 'break-all',
+            display: '-webkit-box',
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            lineHeight: '1.4'
+          }}
+        >
+          {remark || '-'}
+        </span>
+      )
     },
     {
       title: '操作',
