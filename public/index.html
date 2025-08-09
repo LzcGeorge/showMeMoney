@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>自选股行情 Watchlist</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --card: #151924;
+      --fg: #e7eaf0;
+      --muted: #9aa4b2;
+      --up: #ff4d4f;   /* 涨红 */
+      --down: #2ecc71; /* 跌绿 */
+      --accent: #4c8dff;
+      --border: #222735;
+      --hover: #1b2130;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f7f8fb; --card: #fff; --fg: #111316; --muted: #5f6b7a;
+        --up: #d4380d; --down: #13a776; --accent: #2f6bff; --border:#e6e8ee; --hover:#f0f2f7;
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, "PingFang SC","Hiragino Sans GB","Microsoft YaHei", Arial, sans-serif;
+      background: var(--bg); color: var(--fg);
+    }
+    .app { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
+    header .title { font-size:20px; font-weight:700; }
+    header .meta { color:var(--muted); font-size:12px; }
+
+    .card { background:var(--card); border:1px solid var(--border); border-radius:12px; box-shadow:0 4px 20px rgba(0,0,0,.12); }
+    .controls { padding:14px; display:grid; grid-template-columns: 1fr auto auto auto; gap:10px; align-items:center; }
+    @media (max-width:680px){ .controls{ grid-template-columns:1fr 1fr; } }
+    input[type="text"]{ width:100%; background:var(--hover); color:var(--fg); border:1px solid var(--border); border-radius:10px; padding:10px 12px; outline:none; }
+    input[type="text"]::placeholder{ color:var(--muted); }
+    .btn{ appearance:none; border:1px solid var(--border); background:var(--hover); color:var(--fg); padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600; }
+    .btn.primary{ background:var(--accent); border-color:var(--accent); color:#fff; }
+    .btn:disabled{ opacity:.6; cursor:not-allowed; }
+    .toggle{ display:inline-flex; align-items:center; gap:8px; color:var(--muted); font-size:13px; }
+    .toggle input{ accent-color:var(--accent); }
+
+    table{ width:100%; border-collapse:collapse; }
+    thead th{ text-align:left; font-size:12px; font-weight:700; color:var(--muted); padding:10px 12px; border-bottom:1px solid var(--border); }
+    tbody td{ padding:12px; border-bottom:1px dashed var(--border); vertical-align:middle; }
+    tbody tr:hover{ background:var(--hover); }
+    td.code .sym{ font-weight:800; letter-spacing:.3px; }
+    td.code .ex{ color:var(--muted); font-size:12px; }
+    td.name{ max-width:280px; }
+    td.price{ font-variant-numeric: tabular-nums; font-weight:700; }
+    td.change, td.pct{ font-variant-numeric: tabular-nums; }
+    .up{ color:var(--up); }
+    .down{ color:var(--down); }
+    .ops .del{ background:transparent; border:1px solid var(--border); color:var(--muted); width:28px; height:28px; border-radius:8px; cursor:pointer; font-size:16px; }
+    .ops .del:hover{ color:#fff; background:#ff4d4f; border-color:#ff4d4f; }
+    .hint{ color:var(--muted); font-size:12px; padding:10px 14px; }
+    .status{ color:var(--muted); font-size:12px; }
+    footer{ margin-top:12px; color:var(--muted); font-size:12px; text-align:center; }
+    a{ color:var(--accent); text-decoration:none; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="title">自选股行情 Watchlist</div>
+      <div class="meta">上次更新：<span id="last-time">—</span> <span class="status" id="status"></span></div>
+    </header>
+
+    <section class="card controls">
+      <input id="symbol-input" type="text" placeholder="输入代码回车添加：600519、000001、00700.HK、AAPL、rb2409、if2409（支持 A股/港股/美股/期货）" />
+      <button id="add-btn" class="btn primary">添加</button>
+      <button id="refresh-btn" class="btn">刷新</button>
+      <label class="toggle" title="每15秒自动刷新">
+        <input id="auto-toggle" type="checkbox" checked /> 自动刷新
+      </label>
+    </section>
+
+    <section class="card" style="margin-top:12px; overflow:hidden;">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:160px;">代码 / 市场</th>
+            <th>名称</th>
+            <th style="width:140px;">价格</th>
+            <th style="width:120px;">涨跌</th>
+            <th style="width:120px;">涨跌幅</th>
+            <th style="width:180px;">时间</th>
+            <th style="width:70px;">操作</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="hint">
+        数据源：新浪财经 (hq.sinajs.cn)。直连失败会自动回退到 <code>/api/sina</code> 代理。<br/>
+        本地打开 HTML 时，也可以在控制台设置：<code>localStorage.SINA_PROXY='https://&lt;your-project&gt;.vercel.app/api/sina'</code><br/>
+        支持期货示例：<code>rb2409@shfe</code>、<code>ma2409@czce</code>、<code>m2409@dce</code>、<code>sc2409@ine</code>、<code>if2409@cffex</code>（也可直接输入 <code>rb2409</code> 等，自动猜测交易所）。
+      </div>
+    </section>
+
+    <footer>Made with ❤ — 仅作学习演示用</footer>
+  </div>
+
+  <script>
+    (() => {
+      const STORAGE_KEY = 'watchlist.symbols.v1';
+      const AUTO_KEY = 'watchlist.auto';
+      const DEFAULTS = ['600519','000001','00700.HK','AAPL'];
+      const state = { lastUpdated: null, auto: true, interval: 15000, loading: false };
+
+      let symbols = loadSymbols();
+      let autoTimer = null;
+
+      // ===== DOM =====
+      const input = document.getElementById('symbol-input');
+      const addBtn = document.getElementById('add-btn');
+      const refreshBtn = document.getElementById('refresh-btn');
+      const autoToggle = document.getElementById('auto-toggle');
+      const tbody = document.getElementById('tbody');
+      const statusEl = document.getElementById('status');
+      const lastTimeEl = document.getElementById('last-time');
+
+      // 如果当前页面本身就部署在 Vercel 上，则默认代理用相对路径 /api/sina
+      const DEFAULT_PROXY = location.hostname.endsWith('vercel.app') ? '/api/sina' : '';
+      const PROXY = localStorage.getItem('SINA_PROXY') || DEFAULT_PROXY;
+
+      function loadSymbols() {
+        try { const s = localStorage.getItem(STORAGE_KEY); return s ? JSON.parse(s) : DEFAULTS.slice(); }
+        catch { return DEFAULTS.slice(); }
+      }
+      function saveSymbols() { localStorage.setItem(STORAGE_KEY, JSON.stringify(symbols)); }
+
+      function uniqueNormalized(list) {
+        const out = []; const seen = new Set();
+        for (const raw of list) {
+          const s = String(raw).trim();
+          if (!s) continue; const U = s.toUpperCase();
+          if (seen.has(U)) continue; seen.add(U); out.push(s);
+        }
+        return out;
+      }
+      function parseInputSymbols() { return uniqueNormalized((input.value || '').split(/[\s,，]+/)); }
+
+      function addSymbols(symList) {
+        if (!symList.length) return;
+        const set = new Set(symbols.map(s => s.toUpperCase()));
+        let added = 0;
+        for (const s of symList) { const U = s.toUpperCase(); if (!set.has(U)) { symbols.push(s); set.add(U); added++; } }
+        if (added) { saveSymbols(); renderSkeleton(); fetchAndRender(); }
+        input.value = '';
+      }
+      function removeSymbol(sym) {
+        symbols = symbols.filter(s => s.toUpperCase() !== sym.toUpperCase());
+        saveSymbols(); renderSkeleton(); fetchAndRender();
+      }
+
+      function fmtNumber(n, digits = 2) { if (n == null || Number.isNaN(n)) return '—'; return Number(n).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }); }
+      function fmtTime(dt) { return dt ? dt.toLocaleString() : '—'; }
+      function trendClass(v) { if (v == null) return ''; return v > 0 ? 'up' : (v < 0 ? 'down' : ''); }
+      function cssEscapeId(id) { return String(id).replace(/[^a-zA-Z0-9_-]/g, s => '\\' + s); }
+
+      function renderSkeleton() {
+        if (!symbols.length) {
+          tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:24px; color: var(--muted);">暂无自选。上面输入股票代码后按“添加”。</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = symbols.map(sym => {
+          const U = String(sym).toUpperCase();
+          return `
+          <tr data-symbol="${U}">
+            <td class="code">
+              <div class="sym">${U}</div>
+              <div class="ex" id="ex-${U}"></div>
+            </td>
+            <td class="name" id="name-${U}">加载中…</td>
+            <td class="price" id="price-${U}">—</td>
+            <td class="change" id="change-${U}">—</td>
+            <td class="pct" id="pct-${U}">—</td>
+            <td class="time" id="time-${U}">—</td>
+            <td class="ops"><button class="del" data-del="${U}" title="删除">×</button></td>
+          </tr>`;
+        }).join('');
+      }
+
+      // ===== 代码映射：用户输入 -> 新浪代码 =====
+      function toSinaCode(userSym) {
+        const s = String(userSym).trim();
+        const U = s.toUpperCase();
+        let m;
+
+        // A股：600519.SS / 000001.SZ
+        if ((m = U.match(/^(\d{6})\.(SS|SZ)$/))) {
+          const code = m[1]; return (m[2] === 'SS' ? 'sh' : 'sz') + code;
+        }
+        // A股：纯6位（推断交易所）
+        if ((m = U.match(/^(\d{6})$/))) {
+          const code = m[1];
+          const shPrefix = ['5','6','9'];
+          const isSH = shPrefix.includes(code[0]) || code.startsWith('688') || code.startsWith('689');
+          return (isSH ? 'sh' : 'sz') + code;
+        }
+        // 港股：hk00700 或 00700.HK / HK00700
+        if ((m = U.match(/^HK?(\d{4,5})$/)) || (m = U.match(/^(\d{4,5})\.HK$/))) {
+          return 'hk' + m[1].padStart(5, '0');
+        }
+        // 美股：AAPL / AAPL.US -> gb_aapl
+        if ((m = U.match(/^([A-Z\.]{1,12})$/))) {
+          const t = U.replace(/\.US$/, '').toLowerCase();
+          return 'gb_' + t;
+        }
+        return null;
+      }
+      function guessExchange(sinaCode) {
+        if (!sinaCode) return '';
+        if (sinaCode.startsWith('sh')) return '上交所';
+        if (sinaCode.startsWith('sz')) return '深交所';
+        if (sinaCode.startsWith('hk')) return '港交所';
+        if (sinaCode.startsWith('gb_')) return '美股';
+        return '';
+      }
+      // ===== 期货映射（合约代码 -> 新浪 list 代码） =====
+      const FUT_EX_MAP = {
+        shfe: ['rb','ru','cu','al','zn','pb','sn','au','ag','ni','ss','sp','bu','fu'],
+        dce:  ['m','a','b','y','p','c','cs','i','j','jm','l','v','pp','eg','eb','pg'],
+        czce: ['ma','cf','sr','ta','fg','rm','oi','zc','sf','sm','ur','sa','pf','cy'],
+        ine:  ['sc','lu','nr','bc'],
+        cffex:['if','ih','ic','im','t','tf','ts'],
+      };
+      function normalizeMon(mon){
+        if (/^\d{3}$/.test(mon)) {
+          const mm = mon.slice(-2), y = Number(mon[0]);
+          const year = 2020 + y;
+          return String(year).slice(-2) + mm;
+        }
+        return mon;
+      }
+      function toSinaCandidatesFut(userSym){
+        const raw = String(userSym).trim().toLowerCase();
+        const m = raw.match(/^([a-z]{1,3})(\d{3,4})(?:@([a-z]+))?$/);
+        if(!m) return null;
+        const prod = m[1], mon = normalizeMon(m[2]), exHint = m[3];
+        const candidates = [];
+        const push = (ex, code) => candidates.push(code);
+        if (exHint) {
+          if (exHint === 'cffex') push('cffex', `CFF_RE_${prod.toUpperCase()}${mon}`);
+          else if (exHint === 'shfe') push('shfe', `shfe_${prod}${mon}`);
+          else if (exHint === 'dce') push('dce', `dce_${prod}${mon}`);
+          else if (exHint === 'czce') push('czce', `czce_${prod.toUpperCase()}${mon}`);
+          else if (exHint === 'ine') push('ine', `ine_${prod}${mon}`);
+          return candidates;
+        }
+        const inList = (ex)=>FUT_EX_MAP[ex].includes(prod);
+        if (inList('cffex')) push('cffex', `CFF_RE_${prod.toUpperCase()}${mon}`);
+        if (inList('shfe'))  push('shfe',  `shfe_${prod}${mon}`);
+        if (inList('dce'))   push('dce',   `dce_${prod}${mon}`);
+        if (inList('czce'))  push('czce',  `czce_${prod.toUpperCase()}${mon}`);
+        if (inList('ine'))   push('ine',   `ine_${prod}${mon}`);
+        if (!candidates.length) {
+          ['shfe','dce','czce','ine','cffex'].forEach(ex=>{
+            if (ex==='cffex') push(ex, `CFF_RE_${prod.toUpperCase()}${mon}`);
+            else if (ex==='czce') push(ex, `czce_${prod.toUpperCase()}${mon}`);
+            else push(ex, `${ex}_${prod}${mon}`);
+          });
+        }
+        return candidates;
+      }
+      function toSinaCandidates(userSym){
+        const fut = toSinaCandidatesFut(userSym);
+        if (fut && fut.length) return fut;
+        const stock = toSinaCode(userSym);
+        return stock ? [stock] : [];
+      }
+
+      // ===== JSONP 加载：先直连，若变量均未产生则回退到代理 =====
+      function loadScript(src) {
+        return new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = src; s.async = true;
+          s.onload = () => { setTimeout(() => s.remove(), 0); resolve(true); };
+          s.onerror = () => { setTimeout(() => s.remove(), 0); reject(new Error('script load error')); };
+          document.body.appendChild(s);
+        });
+      }
+
+      async function loadSinaJSONP(codes) {
+        if (!codes.length) return;
+        // 清理旧变量，便于后续判定
+        const keys = codes.map(c => 'hq_str_' + c);
+        for (const k of keys) try { delete window[k]; } catch {}
+
+        const direct = `https://hq.sinajs.cn/list=${encodeURIComponent(codes.join(','))}&rn=${Date.now()}`;
+        try {
+          await loadScript(direct);
+          // 直连即使 403 也会 onload，但不会生成变量；检查是否有任意变量出现
+          const ok = keys.some(k => typeof window[k] !== 'undefined');
+          if (ok) return; // 成功
+        } catch (_) { /* 网络层报错则走代理 */ }
+
+        if (!PROXY) throw new Error('直连失败，且未配置代理 SINA_PROXY');
+
+        const viaProxy = `${PROXY}?list=${encodeURIComponent(codes.join(','))}&_=${Date.now()}`;
+        await loadScript(viaProxy);
+      }
+
+      function parseAshare(raw) {
+        const a = (raw || '').split(',');
+        const name = a[0] || '';
+        const preclose = Number(a[2]);
+        const price = Number(a[3]);
+        const date = a[30] || ''; const time = a[31] || '';
+        const change = (isFinite(price) && isFinite(preclose)) ? (price - preclose) : null;
+        const pct = (isFinite(price) && isFinite(preclose) && preclose !== 0) ? (change / preclose * 100) : null;
+        return { name, price: isFinite(price) ? price : null, change, changePercent: pct, time: date && time ? new Date(`${date} ${time}`) : new Date() };
+      }
+      function parseUS(raw) {
+        const a = (raw || '').split(',');
+        const name = a[0] || '';
+        const price = Number(a[1]);
+        const change = Number(a[2]);
+        const pct = Number(a[3]);
+        return { name, price: isFinite(price) ? price : null, change: isFinite(change) ? change : null, changePercent: isFinite(pct) ? pct : null, time: new Date() };
+      }
+      function parseHK(raw) {
+        const a = (raw || '').split(',');
+        const name = a[0] || '';
+        const preclose = Number(a[2]);
+        const price = Number(a[3]);
+        const change = (isFinite(price) && isFinite(preclose)) ? (price - preclose) : null;
+        const pct = (isFinite(price) && isFinite(preclose) && preclose !== 0) ? (change / preclose * 100) : null;
+        return { name, price: isFinite(price) ? price : null, change, changePercent: pct, time: new Date() };
+      }
+      function guessExchangeByCode(code){
+        if (code.startsWith('shfe_')) return 'SHFE';
+        if (code.startsWith('dce_'))  return 'DCE';
+        if (code.startsWith('czce_')) return 'CZCE';
+        if (code.startsWith('ine_'))  return 'INE';
+        if (code.startsWith('CFF_RE_')) return 'CFFEX';
+        return guessExchange(code);
+      }
+      function parseFutGeneric(raw){
+        const a = (raw||'').split(',');
+        const name = a[0] || '';
+        const nums = a.map(Number);
+        const last = nums.find(v=>isFinite(v) && v>0) ?? null;
+        const yset = nums.slice(5,15).find(v=>isFinite(v) && v>0) ?? null;
+        const change = (isFinite(last) && isFinite(yset)) ? (last - yset) : null;
+        const pct = (isFinite(last) && isFinite(yset) && yset!==0) ? change/yset*100 : null;
+        return { name, price: isFinite(last) ? last : null, change, changePercent:pct, time:new Date() };
+      }
+      function parseByCode(code, raw){
+        if (code.startsWith('shfe_') || code.startsWith('dce_') || code.startsWith('czce_') || code.startsWith('ine_') || code.startsWith('CFF_RE_')) return parseFutGeneric(raw);
+        if (code.startsWith('sh') || code.startsWith('sz')) return parseAshare(raw);
+        if (code.startsWith('hk')) return parseHK(raw);
+        if (code.startsWith('gb_')) return parseUS(raw);
+        return { name:'', price:null, change:null, changePercent:null, time:null };
+      }
+
+      async function fetchQuotesSina(userSymbols) {
+        const mapCandidates = new Map(); // USER -> [sinaCode]
+        const allCodes = new Set();
+        for (const s of userSymbols) {
+          const cands = toSinaCandidates(s);
+          if (!cands || !cands.length) continue;
+          mapCandidates.set(String(s).toUpperCase(), cands);
+          cands.forEach(c=>allCodes.add(c));
+        }
+        if (!allCodes.size) return [];
+
+        await loadSinaJSONP([...allCodes]);
+
+        const out = [];
+        for (const [userSym, cands] of mapCandidates.entries()) {
+          let raw = null, hitCode = null;
+          for (const code of cands) {
+            const key = 'hq_str_' + code;
+            if (typeof window[key] !== 'undefined' && window[key]) { raw = window[key]; hitCode = code; break; }
+          }
+          if (!raw) {
+            out.push({ symbol: userSym, name: '未找到', price: null, change: null, changePercent: null, currency: '', time: null, exchange: '' });
+            continue;
+          }
+          const parsed = parseByCode(hitCode, raw);
+          out.push({
+            symbol: userSym,
+            name: parsed.name || userSym,
+            price: parsed.price,
+            change: parsed.change,
+            changePercent: parsed.changePercent,
+            currency: '',
+            time: parsed.time,
+            exchange: guessExchangeByCode(hitCode),
+          });
+          try { delete window['hq_str_' + hitCode]; } catch {}
+        }
+        return out;
+      }
+
+      function applyQuote(q) {
+        const id = cssEscapeId(q.symbol);
+        const nameEl = document.getElementById(`name-${id}`);
+        const priceEl = document.getElementById(`price-${id}`);
+        const changeEl = document.getElementById(`change-${id}`);
+        const pctEl = document.getElementById(`pct-${id}`);
+        const timeEl = document.getElementById(`time-${id}`);
+        const exEl = document.getElementById(`ex-${id}`);
+
+        if (nameEl) nameEl.textContent = q.name || q.symbol;
+        if (priceEl) priceEl.textContent = q.price == null ? '—' : `${fmtNumber(q.price)}`;
+        if (changeEl) {
+          changeEl.textContent = q.change == null ? '—' : `${q.change > 0 ? '+' : ''}${fmtNumber(q.change)}`;
+          changeEl.classList.remove('up','down'); const cls = trendClass(q.change); if (cls) changeEl.classList.add(cls);
+        }
+        if (pctEl) {
+          const p = q.changePercent;
+          pctEl.textContent = p == null ? '—' : `${p > 0 ? '+' : ''}${fmtNumber(p,2)}%`;
+          pctEl.classList.remove('up','down'); const cls = trendClass(p); if (cls) pctEl.classList.add(cls);
+        }
+        if (timeEl) timeEl.textContent = fmtTime(q.time);
+        if (exEl) exEl.textContent = q.exchange || '';
+      }
+
+      async function fetchAndRender() {
+        state.loading = true;
+        statusEl.textContent = '正在更新…';
+        refreshBtn.disabled = true;
+        try {
+          const quotes = await fetchQuotesSina(symbols);
+          const bySym = new Map(quotes.map(q => [String(q.symbol).toUpperCase(), q]));
+          for (const s of symbols) {
+            const key = String(s).toUpperCase();
+            const q = bySym.get(key);
+            if (q) applyQuote(q);
+            else applyQuote({ symbol: key, name: '未找到', price: null, change: null, changePercent: null, currency: '', time: null, exchange: '' });
+          }
+          state.lastUpdated = new Date();
+          lastTimeEl.textContent = state.lastUpdated.toLocaleString();
+          statusEl.textContent = '已更新';
+        } catch (e) {
+          console.error(e);
+          statusEl.textContent = '更新失败';
+        } finally {
+          state.loading = false;
+          refreshBtn.disabled = false;
+          setTimeout(() => statusEl.textContent = '', 1500);
+        }
+      }
+
+      function startAuto(){ stopAuto(); autoTimer = setInterval(fetchAndRender, state.interval); }
+      function stopAuto(){ if (autoTimer){ clearInterval(autoTimer); autoTimer = null; } }
+
+      // 事件
+      addBtn.addEventListener('click', () => { const list = parseInputSymbols(); if (list.length) addSymbols(list); });
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { const list = parseInputSymbols(); if (list.length) addSymbols(list); } });
+      refreshBtn.addEventListener('click', fetchAndRender);
+      autoToggle.addEventListener('change', () => { state.auto = autoToggle.checked; localStorage.setItem(AUTO_KEY, JSON.stringify(state.auto)); if (state.auto) startAuto(); else stopAuto(); });
+      tbody.addEventListener('click', (e) => { const btn = e.target.closest('button.del'); if (btn) { const sym = btn.getAttribute('data-del'); if (confirm(`删除 ${sym} 吗？`)) removeSymbol(sym); } });
+      document.addEventListener('visibilitychange', () => { if (!document.hidden && state.auto) fetchAndRender(); });
+
+      function restoreSettings(){ try{ const saved = localStorage.getItem(AUTO_KEY); if (saved != null) state.auto = JSON.parse(saved); }catch{} autoToggle.checked = state.auto; }
+
+      (function init(){
+        restoreSettings();
+        renderSkeleton();
+        fetchAndRender();
+        if (state.auto) startAuto();
+      })();
+    })();
+  </script>
+</body>
+</html>
